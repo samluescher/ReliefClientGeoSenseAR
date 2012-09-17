@@ -16,9 +16,12 @@
 #include "MapFeature.h"
 #include "ofxJSONElement.h"
 #include "ReliefClientBase.h"
+#include "ofxOsc.h"
 
 #include "ofPinchGestureRecognizer.h"
 #include "ofxUI.h"
+
+#define OVERHEAD_HOST "18.85.58.59"
 
 class testApp : public ReliefClientBase{
 	
@@ -99,6 +102,6 @@ public:
 	ofxUICanvas *calibrationGUI, *layersGUI;
     void guiEvent(ofxUIEventArgs &e);
 	
-    
+    ofxOscSender overheadSender;
 };
 

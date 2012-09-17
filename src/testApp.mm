@@ -61,7 +61,13 @@ ofVec3f testApp::surfaceAt(ofVec2f pos) {
 
 
 //--------------------------------------------------------------
-void testApp::setup() {
+void testApp::setup() 
+{
+    #ifdef OVERHEAD_HOST
+	overheadSender.setup(OVERHEAD_HOST, RELIEF_PORT);
+    ofLog() << "Setting up overhead sender: " << OVERHEAD_HOST;
+    #endif
+    
     #if (USE_QCAR)
     ofLog() << "Initializing QCAR";
     [ofxQCAR_Utils getInstance].targetType = TYPE_FRAMEMARKERS;
@@ -112,9 +118,9 @@ void testApp::setup() {
     
     numLoading = 0;
     ofRegisterURLNotification(this);  
-    //loadFeaturesFromURL("http://map.safecast.org/api/mappoints/4ff47bc60aea6a01ec00000f?b=&"+ofToString(terrainSW.x)+"b="+ofToString(terrainSW.y)+"&b="+ofToString(terrainNE.x)+"&b="+ofToString(terrainNE.y)+"&z=8");
+    loadFeaturesFromURL("http://map.safecast.org/api/mappoints/4ff47bc60aea6a01ec00000f?b=&"+ofToString(terrainSW.x)+"b="+ofToString(terrainSW.y)+"&b="+ofToString(terrainNE.x)+"&b="+ofToString(terrainNE.y)+"&z=8");
     
-    loadFeaturesFromFile("json/safecast.8.json");
+    //loadFeaturesFromFile("json/safecast.8.json");
     //loadFeaturesFromFile("json/earthquakes.json");
     
     calibrationMode = drawDebugEnabled = false;
@@ -524,11 +530,11 @@ void testApp::updateVisibleMap()
 
     int sendMapWidth = normalizedReliefSize.x * sendMapFrom.width;
     int sendMapHeight = normalizedReliefSize.y * sendMapFrom.height;
-    if (sendMap.width != sendMapWidth || sendMap.height != sendMapHeight) {
+    //if (sendMap.width != sendMapWidth || sendMap.height != sendMapHeight) {
         sendMap.allocate(sendMapWidth, sendMapHeight, OF_IMAGE_COLOR);
         terrainCrop.allocate(normalizedReliefSize.x * terrainTex.width, normalizedReliefSize.y * terrainTex.height, OF_IMAGE_COLOR);
         featureMapCrop.allocate(normalizedReliefSize.x * featureMap.width, normalizedReliefSize.y * featureMap.height, OF_IMAGE_COLOR_ALPHA);
-    }
+    //}
 
     sendMap.cropFrom(sendMapFrom, -sendMap.width / 2 + normalizedMapCenter.x * sendMapFrom.width, -sendMap.height / 2 + normalizedMapCenter.y * sendMapFrom.height, sendMap.width, sendMap.height);
     terrainCrop.cropFrom(terrainTex, -terrainCrop.width / 2 + normalizedMapCenter.x * terrainTex.width, -terrainCrop.height / 2 + normalizedMapCenter.y * terrainTex.height, terrainCrop.width, terrainCrop.height);
@@ -567,13 +573,30 @@ void testApp::updateVisibleMap()
     if (reliefSendMode != RELIEF_SEND_OFF) {
     //    reliefMessageSend(message);
     }
+
+    #ifdef OVERHEAD_HOST
+    ofxOscMessage m;
+    m.setAddress("/map/position");
+    m.addFloatArg(mapCenter.x);
+    m.addFloatArg(mapCenter.y);
+    m.addFloatArg(terrainUnitToCameraUnit);
+    overheadSender.sendMessage(m);
+    #endif
 }
 
 
-void testApp::reliefMessageReceived(ofxOscMessage m) {
-    ofLog() << "reliefMessageReceived from " << m.getRemoteIp() << ": " << m.getAddress();
+void testApp::reliefMessageReceived(ofxOscMessage m) 
+{
     ofxUIToggle *indicator = (ofxUIToggle *)calibrationGUI->getWidget("RECEIVING");
     indicator->setValue(!indicator->getValue());
+
+    if (m.getAddress() == "/map/position") {
+        ofLog() << "reliefMessageReceived from " << m.getRemoteIp() << ": " << m.getAddress();
+        mapCenter.x = m.getArgAsFloat(0);
+        mapCenter.y = m.getArgAsFloat(1);
+        ofLog() << "position: " << mapCenter;
+        updateVisibleMap();
+    }
 }
 
 
@@ -704,6 +727,7 @@ void testApp::addItemsFromJSONString(string jsonStr) {
         }
         featureMap.reloadTexture();
         featureHeightMap.reloadTexture();
+        updateVisibleMap();
     } else {
         cout << "Error parsing JSON";
     }
