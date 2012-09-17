@@ -11,11 +11,6 @@
 		15315111158459DA006C8A5C /* ofxQCAR_EAGLView.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1531510F158459DA006C8A5C /* ofxQCAR_EAGLView.mm */; };
 		1531511815845CDD006C8A5C /* ofxQCAR.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1531511315845CDC006C8A5C /* ofxQCAR.mm */; };
 		1531511B15845FFB006C8A5C /* ofxQCAR_Utils.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1531511915845FFB006C8A5C /* ofxQCAR_Utils.mm */; };
-		153151221584F349006C8A5C /* StonesAndChips.dat in Resources */ = {isa = PBXBuildFile; fileRef = 1531511D1584F349006C8A5C /* StonesAndChips.dat */; };
-		153151231584F349006C8A5C /* StonesAndChips.xml in Resources */ = {isa = PBXBuildFile; fileRef = 1531511E1584F349006C8A5C /* StonesAndChips.xml */; };
-		153151241584F349006C8A5C /* Tarmac.dat in Resources */ = {isa = PBXBuildFile; fileRef = 1531511F1584F349006C8A5C /* Tarmac.dat */; };
-		153151251584F349006C8A5C /* Tarmac.xml in Resources */ = {isa = PBXBuildFile; fileRef = 153151201584F349006C8A5C /* Tarmac.xml */; };
-		153151261584F349006C8A5C /* TextureTeapotBrass.png in Resources */ = {isa = PBXBuildFile; fileRef = 153151211584F349006C8A5C /* TextureTeapotBrass.png */; };
 		15766B551583329D0015F67F /* libQCAR.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 15766B541583329D0015F67F /* libQCAR.a */; };
 		15EC4D661583280300A77FC0 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15EC4D64158327EE00A77FC0 /* SystemConfiguration.framework */; };
 		15EC4D671583280300A77FC0 /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 15EC4D62158327E200A77FC0 /* Security.framework */; };
@@ -101,11 +96,6 @@
 		1531511615845CDC006C8A5C /* ofxQCAR.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ofxQCAR.h; sourceTree = "<group>"; };
 		1531511915845FFB006C8A5C /* ofxQCAR_Utils.mm */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.objcpp; path = ofxQCAR_Utils.mm; sourceTree = "<group>"; };
 		1531511A15845FFB006C8A5C /* ofxQCAR_Utils.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ofxQCAR_Utils.h; sourceTree = "<group>"; };
-		1531511D1584F349006C8A5C /* StonesAndChips.dat */ = {isa = PBXFileReference; lastKnownFileType = file; path = StonesAndChips.dat; sourceTree = "<group>"; };
-		1531511E1584F349006C8A5C /* StonesAndChips.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = StonesAndChips.xml; sourceTree = "<group>"; };
-		1531511F1584F349006C8A5C /* Tarmac.dat */ = {isa = PBXFileReference; lastKnownFileType = file; path = Tarmac.dat; sourceTree = "<group>"; };
-		153151201584F349006C8A5C /* Tarmac.xml */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.xml; path = Tarmac.xml; sourceTree = "<group>"; };
-		153151211584F349006C8A5C /* TextureTeapotBrass.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = TextureTeapotBrass.png; sourceTree = "<group>"; };
 		15766B341583329D0015F67F /* Area.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Area.h; sourceTree = "<group>"; };
 		15766B351583329D0015F67F /* CameraCalibration.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CameraCalibration.h; sourceTree = "<group>"; };
 		15766B361583329D0015F67F /* CameraDevice.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CameraDevice.h; sourceTree = "<group>"; };
@@ -248,6 +238,7 @@
 		22AA58AC1606970000E88EF8 /* tinyxmlparser.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = tinyxmlparser.cpp; sourceTree = "<group>"; };
 		22AA58AE1606970000E88EF8 /* ofxXmlSettings.cpp */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.cpp.cpp; path = ofxXmlSettings.cpp; sourceTree = "<group>"; };
 		22AA58AF1606970000E88EF8 /* ofxXmlSettings.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ofxXmlSettings.h; sourceTree = "<group>"; };
+		22AA599C1606E21C00E88EF8 /* config.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = config.h; sourceTree = "<group>"; };
 		288765FC0DF74451002DB57D /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
 		32CA4F630368D1EE00C91783 /* iPhone_Prefix.pch */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = iPhone_Prefix.pch; sourceTree = "<group>"; };
 		5326AEA710A23A0500278DE6 /* CoreLocation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreLocation.framework; path = System/Library/Frameworks/CoreLocation.framework; sourceTree = SDKROOT; };
@@ -299,18 +290,6 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		1531511C1584F349006C8A5C /* qcar_assets */ = {
-			isa = PBXGroup;
-			children = (
-				1531511D1584F349006C8A5C /* StonesAndChips.dat */,
-				1531511E1584F349006C8A5C /* StonesAndChips.xml */,
-				1531511F1584F349006C8A5C /* Tarmac.dat */,
-				153151201584F349006C8A5C /* Tarmac.xml */,
-				153151211584F349006C8A5C /* TextureTeapotBrass.png */,
-			);
-			path = qcar_assets;
-			sourceTree = "<group>";
-		};
 		15766B321583329D0015F67F /* include */ = {
 			isa = PBXGroup;
 			children = (
@@ -754,7 +733,6 @@
 		BB24DD8B10DA77E000E9C588 /* data */ = {
 			isa = PBXGroup;
 			children = (
-				1531511C1584F349006C8A5C /* qcar_assets */,
 				BB24DD8C10DA77E000E9C588 /* Default.png */,
 				BB24DD8D10DA77E000E9C588 /* Icon.png */,
 			);
@@ -793,6 +771,7 @@
 		E4D8936A11527B74007E1F53 /* src */ = {
 			isa = PBXGroup;
 			children = (
+				22AA599C1606E21C00E88EF8 /* config.h */,
 				226023DF16066EA40082606C /* gestures */,
 				227024BF1605456A00BDB047 /* MapFeature.h */,
 				227024C01605456A00BDB047 /* MapFeature.cpp */,
@@ -884,11 +863,6 @@
 				E41D3ED713B38FB500A75A5D /* Project.xcconfig in Resources */,
 				E41D3EE613B3906D00A75A5D /* CoreOF.xcconfig in Resources */,
 				15EC4D691583285E00A77FC0 /* README.md in Resources */,
-				153151221584F349006C8A5C /* StonesAndChips.dat in Resources */,
-				153151231584F349006C8A5C /* StonesAndChips.xml in Resources */,
-				153151241584F349006C8A5C /* Tarmac.dat in Resources */,
-				153151251584F349006C8A5C /* Tarmac.xml in Resources */,
-				153151261584F349006C8A5C /* TextureTeapotBrass.png in Resources */,
 				22702483160543C500BDB047 /* json_internalarray.inl in Resources */,
 				22702484160543C500BDB047 /* json_internalmap.inl in Resources */,
 				22702487160543C500BDB047 /* json_valueiterator.inl in Resources */,

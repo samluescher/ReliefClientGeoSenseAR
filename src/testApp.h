@@ -6,22 +6,21 @@
 #if (TARGET_OS_IPHONE)
 #include "ofxQCAR.h"
 #include "ofxQCAR_Utils.h"
+#include "ofxiPhone.h"
+#include "ofxiPhoneExtras.h"
+#include "ofPinchGestureRecognizer.h"
 #define USE_QCAR true
 #else
 #define USE_QCAR false
 #endif
 
-#include "ofxiPhone.h"
-#include "ofxiPhoneExtras.h"
 #include "MapFeature.h"
 #include "ofxJSONElement.h"
 #include "ReliefClientBase.h"
 #include "ofxOsc.h"
 
-#include "ofPinchGestureRecognizer.h"
 #include "ofxUI.h"
-
-#define OVERHEAD_HOST "18.85.58.59"
+#include "config.h"
 
 class testApp : public ReliefClientBase{
 	
@@ -31,6 +30,7 @@ public:
     void draw();
     void exit();
 	
+#if (TARGET_OS_IPHONE)
     void touchDown(ofTouchEventArgs & touch);
     void touchMoved(ofTouchEventArgs & touch);
     void touchUp(ofTouchEventArgs & touch);
@@ -41,6 +41,7 @@ public:
     void gotFocus();
     void gotMemoryWarning();
     void deviceOrientationChanged(int newOrientation);
+#endif
     
     ofVboMesh terrainVboMesh;
     ofImage terrainTex, terrainTexAlpha, heightMap, terrainCrop, sendMap, featureMap, featureMapCrop, featureHeightMap;
@@ -50,6 +51,8 @@ public:
     ofVec2f normalizedMapCenter, normalizedReliefSize;
     float terrainPeakHeight, featureHeight;
     ofVec3f surfaceAt(ofVec2f pos);
+    float waterLevel;
+    bool isPanning;
     
     std::vector<MapFeature*> mapFeatures;
     ofVboMesh mapFeaturesMesh;
@@ -66,7 +69,7 @@ public:
     ofVec2f touchPoint;
     int deviceOrientation;
     
-    float terrainUnitToCameraUnit, reliefUnitToCameraUnit, reliefUnitToTerrainUnit;
+    float terrainUnitToScreenUnit, reliefUnitToScreenUnit, reliefUnitToTerrainUnit;
     bool calibrationMode, zoomMode;
     float timeSinceLastDoubleTap;
     ofVec3f reliefToMarkerOffset;
@@ -76,7 +79,8 @@ public:
     int noMarkerSince;
     
     ofVec3f mapCenter, newMapCenter;
-    ofCamera cam;
+    ofEasyCam cam;
+    void resetCam(); 
     
     void drawIdentity();
     void drawTerrain(bool transparent, bool wireframe);
@@ -88,17 +92,18 @@ public:
     void drawGUI();
     void updateVisibleMap();
     
-    bool drawTerrainEnabled, drawTerrainGridEnabled, drawDebugEnabled, drawMapFeaturesEnabled, drawMiniMapEnabled, drawWaterEnabled, tetherWaterEnabled;
+    bool drawTerrainEnabled, drawTerrainGridEnabled, drawDebugEnabled, drawMapFeaturesEnabled, drawMiniMapEnabled, drawWaterEnabled, tetherWaterEnabled, fullscreenEnabled;
     
     void reliefMessageReceived(ofxOscMessage m);
     void updateRelief();
     int reliefSendMode;
-        
     
+    
+#if (TARGET_OS_IPHONE)
     ofPinchGestureRecognizer *pinchRecognizer;
     void handlePinch(ofPinchEventArgs &e);
-     
-
+#endif 
+    
 	ofxUICanvas *calibrationGUI, *layersGUI;
     void guiEvent(ofxUIEventArgs &e);
 	
