@@ -7,6 +7,10 @@
 #define RELIEF_HOST "18.189.22.224"
 #define RELIEF_PORT 78746
 
+#define RELIEF_SIZE_X 12
+#define RELIEF_SIZE_Y 12
+#define RELIEF_MAX_VALUE 127
+
 //--------------------------------------------------------
 class ReliefClientBase : public ofxiPhoneApp {
     

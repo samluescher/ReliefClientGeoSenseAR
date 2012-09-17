@@ -2,81 +2,229 @@
 #include "ImageMesh.h"
 
 #define NO_MARKER_TOLERANCE_FRAMES 10
-#define FEATURE_HEIGHT .25f
 #define GRID_SUBDIVISIONS 10
 #define MAX_VAL 500.0f // for normalizing val -- this will come from db later
 #define WATER_COLOR ofColor(0, 100, 120)
+#define MINI_MAP_W 350
 
 #define fukushima ofVec2f(141.033247, 37.425252)
 
-#define RELIEF_SIZE_X 12
-#define RELIEF_SIZE_Y 12
+#define RELIEF_SEND_TERRAIN 1
+#define RELIEF_SEND_FEATURES 2
+#define RELIEF_SEND_OFF 0
 
-void copyImageWithAlphaScale(ofImage &from, ofImage &to, float alphaScale) {
+int getBrightness(ofColor c) {
+    return MAX(MAX(c.r,c.g),c.b);
+}
+
+int getLightness(ofColor c) {
+    return (c.r + c.g + c.b) / 3.f;
+}
+
+int getHue(ofColor c) {
+    float max = MAX(MAX(c.r, c.g), c.b);
+    float min = MIN(MIN(c.r, c.g), c.b);
+    float delta = max-min;
+    if (c.r==max) return (0 + (c.g-c.b) / delta) * 42.5;  //yellow...magenta
+    if (c.g==max) return (2 + (c.b-c.r) / delta) * 42.5;  //cyan...yellow
+    if (c.b==max) return (4 + (c.r-c.g) / delta) * 42.5;  //magenta...cyan
+    return 0;
+}
+
+int getSaturation(ofColor c) {
+    float min = MIN(MIN(c.r, c.g), c.b);
+    float max = MAX(MAX(c.r, c.g), c.b);
+    float delta = max-min;
+    if (max!=0) return int(delta/max*255);
+    return 0;
+}
+
+void copyImageWithScaledColors(ofImage &from, ofImage &to, float alphaScale, float saturationScale) {
     for (int y = 0; y < from.height; y++) {
         for (int x = 0; x < from.height; x++) {
             ofColor c = from.getColor(x, y);
-            c.a *= alphaScale;
-            to.setColor(x, y, c);
+            ofColor targetC = ofColor::fromHsb(getHue(c), getSaturation(c) * saturationScale, getBrightness(c));
+            targetC.a = alphaScale * c.a;
+            to.setColor(x, y, targetC);
         }
     }
 }
 
+ofVec3f testApp::surfaceAt(ofVec2f pos) {
+    ofVec2f normPos = (pos - terrainSW) / terrainExtents;
+    if (normPos.x >= 0 && normPos.x <= 1 && normPos.y >= 0 && normPos.y <= 1) {
+        ofColor c = heightMap.getColor(normPos.x * heightMap.width, heightMap.height - normPos.y * heightMap.height);
+        return ofVec3f(pos.x, pos.y, c.r / 255 * terrainPeakHeight + .05);
+    }
+    return ofVec3f(pos.x, pos.y, 0);
+}
+
+
 //--------------------------------------------------------------
 void testApp::setup() {
-#if (USE_QCAR)
+    #if (USE_QCAR)
     ofLog() << "Initializing QCAR";
     [ofxQCAR_Utils getInstance].targetType = TYPE_FRAMEMARKERS;
     ofxQCAR * qcar = ofxQCAR::getInstance();
     qcar->autoFocusOn();
     qcar->setup();
     noMarkerSince = -NO_MARKER_TOLERANCE_FRAMES;
-#endif
+    #endif
     
     ofLog() << "Loading maps";
-	heightMap.loadImage("maps/heightmap.ASTGTM2_128,28,149,45-14400.png");
-    heightMapDownsampled.loadImage("maps/heightmap.ASTGTM2_128,28,149,45-1600.png");
+    heightMap.loadImage("maps/heightmap.ASTGTM2_128,28,149,45-1600.png");
+
 	terrainTex.loadImage("maps/srtm.ASTGTM2_128,28,149,45-14400.png");
-    terrainTexAlpha.allocate(terrainTex.width, terrainTex.height, OF_IMAGE_COLOR_ALPHA);
-    copyImageWithAlphaScale(terrainTex, terrainTexAlpha, .8);
-    terrainTexAlpha.reloadTexture();
+	terrainTexAlpha.loadImage("maps/srtm.ASTGTM2_128,28,149,45-14400-a85.png");
+    
+    /*terrainTexAlpha.allocate(terrainTex.width, terrainTex.height, OF_IMAGE_COLOR_ALPHA);
+    copyImageWithScaledColors(terrainTex, terrainTexAlpha, .8, .8);
+    terrainTexAlpha.reloadTexture();*/
     
     terrainSW = ofVec2f(128, 28);
     terrainNE = ofVec2f(150, 46);
     terrainExtents = ofVec2f(terrainNE.x - terrainSW.x, terrainNE.y - terrainSW.y);
     ofLog() << "terrainExtents: " << terrainExtents.x << "," << terrainExtents.y;
     ofVec2f center = terrainSW + terrainExtents / 2;
-    terrainToHeightMapScale = ofVec3f(terrainExtents.x / heightMap.width, terrainExtents.y / heightMap.height, 1);
-    terrainToHeightMapScale.z = (terrainToHeightMapScale.x + terrainToHeightMapScale.y) / 2;
-    float terrainPeakHeight = terrainToHeightMapScale.z * 1500;
     terrainCenterOffset = ofVec3f(center.x, center.y, 0); 
     mapCenter = ofVec3f(141, 37.4, 0); // initially center on Fukushima
-    terrainUnitToCameraUnit = 1 / 600.0f;
-    
+
+    terrainUnitToCameraUnit = 1 / 300.0f;    
     reliefUnitToCameraUnit = 39.5f;
-    
+        
     // offset of physical Relief to physical marker
     reliefToMarkerOffset = ofVec3f(0, /*(RELIEF_SIZE_Y / 2 + 1) * reliefUnitToCameraUnit*/265, 0);
     
     ofEnableNormalizedTexCoords();
-    int heightMapSkipPixels = (heightMap.width * heightMap.height) / 1000000 * .8;
-	terrainVboMesh = meshFromImage(heightMap, heightMapSkipPixels, terrainPeakHeight);
+    
+    terrainToHeightMapScale = ofVec3f(terrainExtents.x / heightMap.width, terrainExtents.y / heightMap.height, 1);
+    terrainToHeightMapScale.z = (terrainToHeightMapScale.x + terrainToHeightMapScale.y) / 2;
+    ofLog() << "terrainToHeightMapScale: " << terrainToHeightMapScale;
+    terrainPeakHeight = terrainToHeightMapScale.z * 300.0f;
+    featureHeight = .1;
+
+    //int heightMapStepPixels = (heightMap.width * heightMap.height) / 1000000 * .8;
+	//terrainVboMesh = meshFromImage(heightMap, heightMapStepPixels, terrainPeakHeight);
+    terrainVboMesh = meshFromImage(heightMap, 1, terrainPeakHeight);
     
     light.enable();
     light.setPosition(100, 0, 0);
     
     numLoading = 0;
     ofRegisterURLNotification(this);  
-    loadFeaturesFromFile("json/safecast.6.json");
-    //string url = "http://map.safecast.org/api/mappoints/4ff47bc60aea6a01ec00000f?b=&"+ofToString(terrainSW.x)+"b="+ofToString(terrainSW.y)+"&b="+ofToString(terrainNE.x)+"&b="+ofToString(terrainNE.y)+"&z=6";
-    //loadFeaturesFromURL(url);
+    //loadFeaturesFromURL("http://map.safecast.org/api/mappoints/4ff47bc60aea6a01ec00000f?b=&"+ofToString(terrainSW.x)+"b="+ofToString(terrainSW.y)+"&b="+ofToString(terrainNE.x)+"&b="+ofToString(terrainNE.y)+"&z=8");
+    
+    loadFeaturesFromFile("json/safecast.8.json");
+    //loadFeaturesFromFile("json/earthquakes.json");
     
     calibrationMode = drawDebugEnabled = false;
     timeSinceLastDoubleTap = 0;
     
+    EAGLView *view = ofxiPhoneGetGLView();  
+    pinchRecognizer = [[ofPinchGestureRecognizer alloc] initWithView:view];
+    ofAddListener(pinchRecognizer->ofPinchEvent,this, &testApp::handlePinch);
+    
+    drawTerrainEnabled = true;
+    drawTerrainGridEnabled = true;
+    drawMapFeaturesEnabled = true;
+    drawMiniMapEnabled = true;
+    drawDebugEnabled = false;
+    drawWaterEnabled = false;
+    tetherWaterEnabled = false;
+    reliefSendMode = RELIEF_SEND_TERRAIN;
+
+    float guiW = 280;
+    float spacing = OFX_UI_GLOBAL_WIDGET_SPACING;
+    float dim = 80;
+    layersGUI = new ofxUICanvas(0, 0, guiW, ofGetHeight() * .5);     
+	layersGUI->setWidgetFontSize(OFX_UI_FONT_LARGE);
+	layersGUI->addToggle("TERRAIN", drawTerrainEnabled, dim, dim);
+	layersGUI->addToggle("GRID", drawTerrainGridEnabled, dim, dim);
+	layersGUI->addToggle("FEATURES", drawMapFeaturesEnabled, dim, dim);
+	layersGUI->addToggle("MINIMAP", drawMiniMapEnabled, dim, dim);
+	layersGUI->addToggle("WATER", drawWaterEnabled, dim, dim);
+	layersGUI->addToggle("DEBUG", drawDebugEnabled, dim, dim);
+
+	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+	layersGUI->addWidgetDown(new ofxUILabel("RELIEF SERVER", OFX_UI_FONT_LARGE)); 
+	layersGUI->addToggle("SEND TERRAIN", reliefSendMode == RELIEF_SEND_TERRAIN, dim, dim);
+	layersGUI->addToggle("SEND FEATURES", reliefSendMode == RELIEF_SEND_FEATURES, dim, dim);
+
+	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+	layersGUI->addWidgetDown(new ofxUILabel("SIMULATION", OFX_UI_FONT_LARGE)); 
+	layersGUI->addToggle("TETHER WATER", tetherWaterEnabled, dim, dim);
+    
+    layersGUI->setDrawBack(true);
+    layersGUI->setColorBack(ofColor(60, 60, 60, 100));
+	ofAddListener(layersGUI->newGUIEvent,this,&testApp::guiEvent);
+
+    guiW = 500;
+    calibrationGUI = new ofxUICanvas(0, 0, guiW, ofGetHeight());     
+	calibrationGUI->addWidgetDown(new ofxUILabel("RELIEF SERVER", OFX_UI_FONT_LARGE)); 
+	calibrationGUI->setWidgetFontSize(OFX_UI_FONT_LARGE);
+	calibrationGUI->addWidgetDown(new ofxUILabel("HOST", OFX_UI_FONT_MEDIUM));
+	calibrationGUI->addTextInput("RELIEF_HOST", RELIEF_HOST, guiW - spacing);
+
+	calibrationGUI->addTextInput("RELIEF_PORT", ofToString(RELIEF_PORT), guiW - spacing);    
+    calibrationGUI->setDrawBack(false);
+    calibrationGUI->setVisible(false);
+	calibrationGUI->addToggle("RECEIVING", false, dim, dim);
+	ofAddListener(calibrationGUI->newGUIEvent,this,&testApp::guiEvent);
+
+    
     updateVisibleMap();
 }
 
+void testApp::guiEvent(ofxUIEventArgs &e)
+{
+	string name = e.widget->getName(); 
+	int kind = e.widget->getKind(); 
+
+    if (kind == OFX_UI_WIDGET_TOGGLE) {
+        ofxUIToggle *toggle = (ofxUIToggle *) e.widget; 
+        bool value = toggle->getValue(); 
+        if (name == "TERRAIN") {
+            drawTerrainEnabled = value;
+        }
+        if (name == "GRID") {
+            drawTerrainGridEnabled = value;
+        }
+        if (name == "FEATURES") {
+            drawMapFeaturesEnabled = value;
+        }
+        if (name == "MINIMAP") {
+            drawMiniMapEnabled = value;
+        }
+        if (name == "DEBUG") {
+            drawDebugEnabled = value;
+        }
+
+        if (name == "SEND TERRAIN") {
+            if (value) {
+                ofxUIToggle *other = (ofxUIToggle *)layersGUI->getWidget("SEND FEATURES");
+                other->setValue(false);
+                reliefSendMode = RELIEF_SEND_TERRAIN;
+                updateVisibleMap();
+            } else {
+                reliefSendMode = RELIEF_SEND_OFF;
+            }
+        }
+        if (name == "SEND FEATURES") {
+            if (value) {
+                ofxUIToggle *other = (ofxUIToggle *)layersGUI->getWidget("SEND TERRAIN");
+                other->setValue(false);
+                reliefSendMode = RELIEF_SEND_FEATURES;
+                updateVisibleMap();
+            } else {
+                reliefSendMode = RELIEF_SEND_OFF;
+            }
+        }
+}
+    
+	cout << "got event from: " << name  << " " << kind << " " << OFX_UI_WIDGET_TOGGLE << endl; 	
+}
 void testApp::update() 
 {    
     reliefUpdate();
@@ -85,17 +233,37 @@ void testApp::update()
 #endif
 }
 
+
+void testApp::handlePinch(ofPinchEventArgs &e) {
+    /*
+    float scale = e.scale * .01;
+    if (e.scale > 1) {
+        terrainUnitToCameraUnit += (terrainUnitToCameraUnit * scale);
+    } else {
+        terrainUnitToCameraUnit -= (terrainUnitToCameraUnit * scale);
+    }
+     */
+}
+
+
 //--------------------------------------------------------------
 
-void testApp::drawTerrain(bool transparent) {
+void testApp::drawTerrain(bool transparent, bool wireframe) {
     ofPushMatrix();
     ofTranslate(terrainSW + terrainExtents / 2);
     ofScale(terrainToHeightMapScale.x, terrainToHeightMapScale.y, terrainToHeightMapScale.z); 
     ofSetColor(255, 255, 255, 5);
     
-    if (transparent) terrainTexAlpha.bind(); else terrainTex.bind();
-    terrainVboMesh.draw(); 
-    if (transparent) terrainTexAlpha.unbind(); else terrainTex.unbind();
+    if (transparent && !wireframe) terrainTexAlpha.bind(); else terrainTex.bind();
+
+    if (!wireframe) {
+        terrainVboMesh.draw(); 
+    } else {
+        ofSetColor(100, 100, 100, 100);
+        terrainVboMesh.drawWireframe(); 
+    }
+    
+    if (transparent && !wireframe) terrainTexAlpha.unbind(); else terrainTex.unbind();
     ofPopMatrix();
 }
 
@@ -103,29 +271,11 @@ void testApp::drawMapFeatures()
 {
     glLineWidth(10);
     mapFeaturesMesh.draw();
-    
-    
-    /*
-     for(int i = 0; i < mapFeatures.size(); i++) {
-     ofPushMatrix();
-     
-     ofVec3f pos = mapFeatures[i]->getPosition();
-     ofTranslate(pos);
-     ofScale(mapFeatures[i]->width * .5, mapFeatures[i]->width *.5, mapFeatures[i]->normVal * mapFeatures[i]->height);
-     
-     ofFill();
-     ofSetColor(min(mapFeatures[i]->normVal * 255, 255.0f), 128, 200, 150);
-     ofTranslate(0, 0, 0.5);
-     ofBox(1);
-     
-     ofPopMatrix();
-     } 
-     */
 }
 
-void testApp::draw(){
-    
-#if (USE_QCAR)
+void testApp::draw()
+{    
+    #if (USE_QCAR)
     ofxQCAR * qcar = ofxQCAR::getInstance();
     qcar->draw();
     
@@ -136,13 +286,13 @@ void testApp::draw(){
     }
     
     bool useARMatrix = noMarkerSince > -NO_MARKER_TOLERANCE_FRAMES;
-#else
+    #else
     bool useARMatrix = false;
-#endif
-    
+    #endif
     
     ofPushView();
-    
+
+    #if (USE_QCAR)
     if (useARMatrix) {
         glMatrixMode(GL_PROJECTION);
         glLoadMatrixf(modelViewMatrix.getPtr());
@@ -150,6 +300,9 @@ void testApp::draw(){
         glMatrixMode(GL_MODELVIEW );
         glLoadMatrixf(projectionMatrix.getPtr());
     }
+    #else
+    cam.begin();
+    #endif
     
     ofPushMatrix();
     if (useARMatrix) {
@@ -157,24 +310,31 @@ void testApp::draw(){
     }
     
     ofPushMatrix();
-    //            ofTranslate(-terrainCenterOffset - (mapCenter - terrainCenterOffset));
-    
+    //ofTranslate(-terrainCenterOffset - (mapCenter - terrainCenterOffset));
     ofTranslate(-mapCenter);
     
     ofEnableBlendMode(OF_BLENDMODE_ALPHA);
     
     if (!calibrationMode) {
+        if (drawTerrainEnabled) {
+            glEnable(GL_DEPTH_TEST);
+            drawTerrain(useARMatrix, false);
+            glDisable(GL_DEPTH_TEST);
+        }
+
+        if (drawDebugEnabled) {
+            drawTerrain(false, true);
+        }
+
+        if (drawMapFeaturesEnabled) {
+            glEnable(GL_DEPTH_TEST);
+            drawMapFeatures();
+            glDisable(GL_DEPTH_TEST);
+        }
         
-        glEnable(GL_DEPTH_TEST);
-        drawTerrain(useARMatrix);
-        glDisable(GL_DEPTH_TEST);
-        drawMapFeatures();
-        
-        drawTerrainGrid();
-        
-        // Fuji
-        ofSetColor(0, 255, 0);
-        ofSphere(fukushima.x, fukushima.y, 0, .05);
+        if (drawTerrainGridEnabled) {
+            drawTerrainGrid();
+        }
     }
     
     ofDisableBlendMode();
@@ -191,12 +351,15 @@ void testApp::draw(){
     
     ofPopView();
     
-#if (USE_QCAR)
-    if (useARMatrix) {
+    #if (USE_QCAR)
+    if (useARMatrix && drawDebugEnabled) {
         ofSetColor(255);
         qcar->drawMarkerCenter();
     }
-#endif 
+    #else
+    cam.end();
+    #endif 
+    
     
     if (!calibrationMode) {
         testApp::drawGUI();
@@ -205,119 +368,136 @@ void testApp::draw(){
 
 void testApp::drawGUI() 
 {
-    ofEnableBlendMode(OF_BLENDMODE_ALPHA);
-    switch (deviceOrientation) {
-        case OFXIPHONE_ORIENTATION_LANDSCAPE_RIGHT:
-        case OFXIPHONE_ORIENTATION_LANDSCAPE_LEFT:
-            break;
-    }
-    glLineWidth(1);
-    
-    float miniMapW = 350;
-    float miniMapUnitsToHeightMapUnits = miniMapW / (float)heightMap.width;
-    float miniMapH = miniMapUnitsToHeightMapUnits * heightMap.height;
-    ofVec2f p = ofVec2f(ofGetWidth() - miniMapW - 10, 10);
-    ofFill();
-    ofSetColor(WATER_COLOR);
-    ofRect(p, miniMapW, miniMapH);
-    ofSetColor(255);
-    
-    terrainTex.draw(p, miniMapW, miniMapH);
-    
-    
-    ofPushMatrix();
-    ofTranslate(p.x, p.y + miniMapH);
-    ofScale(miniMapW / terrainExtents.x, -miniMapH / terrainExtents.y);
-    ofTranslate(-terrainSW);
-    
-    ofNoFill();
-    
-    ofSetColor(200, 200, 200, 100);
-    for(int y = terrainSW.y; y < terrainNE.y; y++) {
-        for(int x = terrainSW.x; x < terrainNE.x; x++) {
-            ofVec3f pos = ofVec3f(x, y);
-            ofRect(pos, 1, 1);
+    if (drawMiniMapEnabled) {
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+        switch (deviceOrientation) {
+            case OFXIPHONE_ORIENTATION_LANDSCAPE_RIGHT:
+            case OFXIPHONE_ORIENTATION_LANDSCAPE_LEFT:
+                break;
         }
-    }        
-    
-    if (drawDebugEnabled) {
+        glLineWidth(1);
+        
+        float miniMapW = MINI_MAP_W;
+        float miniMapUnitsToHeightMapUnits = miniMapW / (float)heightMap.width;
+        float miniMapH = miniMapUnitsToHeightMapUnits * heightMap.height;
+        ofVec2f p = ofVec2f(ofGetWidth() - miniMapW - OFX_UI_GLOBAL_WIDGET_SPACING, OFX_UI_GLOBAL_WIDGET_SPACING);
         ofFill();
-        for(int i = 0; i < mapFeatures.size(); i++) {
-            ofSetColor(mapFeatures[i]->color);
-            ofVec3f pos = mapFeatures[i]->getPosition();
-            ofRect(pos - gridSize / 2, gridSize, gridSize);
-        }        
+        ofSetColor(WATER_COLOR);
+        ofRect(p, miniMapW, miniMapH);
+        ofSetColor(255);
+        
+        terrainTex.draw(p, miniMapW, miniMapH);
+        if (drawMapFeaturesEnabled) {
+            featureMap.draw(p, miniMapW, miniMapH);
+        }
+        
+        
+        ofPushMatrix();
+            ofTranslate(p.x, p.y + miniMapH);
+            ofScale(miniMapW / terrainExtents.x, -miniMapH / terrainExtents.y);
+            ofTranslate(-terrainSW);
+            
+            if (drawTerrainGridEnabled) {
+                ofNoFill();
+                ofSetColor(60, 60, 60, 100);
+                for(int y = terrainSW.y; y < terrainNE.y; y++) {
+                    for(int x = terrainSW.x; x < terrainNE.x; x++) {
+                        ofVec3f pos = ofVec3f(x, y);
+                        ofRect(pos, 1, 1);
+                    }
+                }
+            }
+            
+            ofNoFill();
+            ofSetColor(0, 255, 150, 250);
+            ofCircle(mapCenter, .5);
+        ofPopMatrix();
+        
+        ofPushMatrix();
+        ofTranslate(p);
+        
+        ofNoFill();
+        ofSetColor(255, 255, 255, 240);
+        
+        float marqueeW = normalizedReliefSize.x * miniMapW;
+        float marqueeH = normalizedReliefSize.y * miniMapH;
+        ofVec2f mapCenterOnMiniMap = normalizedMapCenter * ofVec2f(miniMapW, miniMapH);
+        
+        ofRect(mapCenterOnMiniMap - ofVec2f(marqueeW / 2, marqueeH / 2), marqueeW, marqueeH);
+        ofCircle(mapCenterOnMiniMap, 4);
+        ofPopMatrix();
+        
+        ofSetColor(255);
+        int imgH = miniMapW / terrainCrop.width * terrainCrop.height;
+        p += ofVec2f(0, miniMapH + OFX_UI_GLOBAL_WIDGET_SPACING);
+        ofFill();
+        ofSetColor(WATER_COLOR);
+        ofRect(p, miniMapW, imgH);
+        ofSetColor(255);
+        terrainCrop.draw(p, miniMapW, imgH);
+        if (drawMapFeaturesEnabled) {
+            featureMapCrop.draw(p, miniMapW, imgH);
+        }
+        
+        if (reliefSendMode != RELIEF_SEND_OFF) {
+            p += ofVec2f(0, imgH + OFX_UI_GLOBAL_WIDGET_SPACING);
+            ofSetColor(ofColor(60, 60, 60, 150));
+            ofRect(p, miniMapW, imgH);
+            ofSetColor(255);
+            sendMap.draw(p, miniMapW, imgH);
+            
+            if (drawDebugEnabled) {
+                p += ofVec2f(0, imgH + OFX_UI_GLOBAL_WIDGET_SPACING);
+                float w = miniMapW / RELIEF_SIZE_X;
+                float h = imgH / RELIEF_SIZE_Y;
+                ofFill();
+                for (int x = RELIEF_SIZE_X - 1; x >= 0; x--) {
+                    for (int y = 0; y < RELIEF_SIZE_Y; y++) {
+                        float avg = sendMapResampledValues[x + y * RELIEF_SIZE_Y];
+                        ofSetColor(avg);
+                        ofRect(p.x + x * w, p.y + y * h, w, h);
+                    }
+                }
+            }
+        }
+        ofDisableBlendMode();
     }
-    
-    ofNoFill();
-    ofSetColor(0, 255, 150, 250);
-    ofCircle(mapCenter, .5);
-    
-    ofPopMatrix();
-    
-    
-    ofPushMatrix();
-    ofTranslate(p);
-    
-    ofNoFill();
-    ofSetColor(255, 255, 255, 240);
-    
-    float marqueeW = normalizedReliefSize.x * miniMapW;
-    float marqueeH = normalizedReliefSize.y * miniMapH;
-    ofVec2f mapCenterOnMiniMap = normalizedMapCenter * ofVec2f(miniMapW, miniMapH);
-    
-    ofRect(mapCenterOnMiniMap - ofVec2f(marqueeW / 2, marqueeH / 2), marqueeW, marqueeH);
-    ofCircle(mapCenterOnMiniMap, 4);
-    ofPopMatrix();
-    
-    ofSetColor(255);
-    int imgH = miniMapW / terrainCrop.width * terrainCrop.height;
-    p += ofVec2f(0, miniMapH + 10);
-    ofFill();
-    ofSetColor(WATER_COLOR);
-    ofRect(p, miniMapW, imgH);
-    ofSetColor(255);
-    terrainCrop.draw(p, miniMapW, imgH);
-    
-    p += ofVec2f(0, imgH + 10);
-    heightMapCrop.draw(p, miniMapW, imgH);
-    
-    p += ofVec2f(0, imgH + 10);
-    heightMapCropResampled.draw(p, miniMapW, imgH);
     
     if (calibrationMode) {
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
         ofFill();
         ofSetColor(20, 20, 20, 150);
         ofRect(0, 0, ofGetWidth(), ofGetHeight());
+        ofDisableBlendMode();
     }
-    
-    ofDisableBlendMode();
-    
-    string msg = "fps: " + ofToString(ofGetFrameRate(), 2) + ", features: " + ofToString(mapFeatures.size());
-    msg += "\nterrain scale: " + ofToString(terrainToHeightMapScale);
-    if (false/*numLoading > 0*/) {
-        msg += "\nloading data";
-    }
-    
+
+    if (drawDebugEnabled) {
+        string msg = "fps: " + ofToString(ofGetFrameRate(), 2) + ", features: " + ofToString(mapFeatures.size());
+        msg += "\nterrain scale: " + ofToString(terrainToHeightMapScale);
+        if (false/*numLoading > 0*/) {
+            msg += "\nloading data";
+        }
+        
 #if (USE_QCAR)
-    ofxQCAR * qcar = ofxQCAR::getInstance();  
-    if (qcar->hasFoundMarker()) {
-        //msg += "\n" + qcar->getMarkerName();
-    }
+        ofxQCAR * qcar = ofxQCAR::getInstance();  
+        if (qcar->hasFoundMarker()) {
+            //msg += "\n" + qcar->getMarkerName();
+        }
 #endif
-    
-    if (calibrationMode) {
-        msg += "\n---CALIBRATION MODE---";
-        msg += "\nreliefUnitToCameraUnit: " + ofToString(reliefUnitToCameraUnit);
-        msg += "\nreliefToMarkerOffset: " + ofToString(reliefToMarkerOffset);
-    }    
-    
-    ofVec2f consolePos = ofVec2f(10, 20);
-    /*ofSetColor(0);
-     ofDrawBitmapString(msg, consolePos.x + 1, consolePos.y + 1);
-     ofDrawBitmapString(msg, consolePos.x - 1, consolePos.y - 1);*/
-    ofSetColor(255);
-	ofDrawBitmapString(msg, consolePos.x, consolePos.y);
+        
+        if (calibrationMode) {
+            msg += "\n---CALIBRATION MODE---";
+            msg += "\nreliefUnitToCameraUnit: " + ofToString(reliefUnitToCameraUnit);
+            msg += "\nreliefToMarkerOffset: " + ofToString(reliefToMarkerOffset);
+        }    
+        
+        ofVec2f consolePos = ofVec2f(ofGetWidth() / 2, 20);
+        /*ofSetColor(0);
+         ofDrawBitmapString(msg, consolePos.x + 1, consolePos.y + 1);
+         ofDrawBitmapString(msg, consolePos.x - 1, consolePos.y - 1);*/
+        ofSetColor(255);
+        ofDrawBitmapString(msg, consolePos.x, consolePos.y);
+    }
 }
 
 void testApp::drawGrid(ofVec2f sw, ofVec2f ne, int subdivisionsX, int subdivisionsY, ofColor line, ofColor background) {
@@ -329,28 +509,34 @@ void testApp::drawGrid(ofVec2f sw, ofVec2f ne, int subdivisionsX, int subdivisio
 
 void testApp::updateVisibleMap()
 {
+    reliefUnitToTerrainUnit = reliefUnitToCameraUnit / (1 / terrainUnitToCameraUnit);
+
     normalizedMapCenter = ((mapCenter - terrainSW) + reliefToMarkerOffset * terrainUnitToCameraUnit) / terrainExtents;    
     normalizedMapCenter.y = 1 - normalizedMapCenter.y;
-    
-    ofVec2f reliefToHeightMapScale = ofVec2f(
-                                             terrainToHeightMapScale.x / terrainUnitToCameraUnit * reliefUnitToCameraUnit,
-                                             terrainToHeightMapScale.y / terrainUnitToCameraUnit * reliefUnitToCameraUnit);
-    
-    // !! TODO: this is wrong
-    normalizedReliefSize = ofVec2f(1 / reliefToHeightMapScale.x * RELIEF_SIZE_X, 1 / reliefToHeightMapScale.y * RELIEF_SIZE_Y);
-    
-    
-    heightMapCrop.allocate(normalizedReliefSize.x * heightMapDownsampled.width, normalizedReliefSize.y * heightMapDownsampled.height, OF_IMAGE_COLOR);
-    heightMapCrop.cropFrom(heightMapDownsampled, -heightMapCrop.width / 2 + normalizedMapCenter.x * heightMapDownsampled.width, -heightMapCrop.height / 2 + normalizedMapCenter.y * heightMapDownsampled.height, heightMapCrop.width, heightMapCrop.height);
-    
-    terrainCrop.allocate(normalizedReliefSize.x * terrainTex.width, normalizedReliefSize.y * terrainTex.height, OF_IMAGE_COLOR);
+    normalizedReliefSize = ofVec2f(RELIEF_SIZE_X * reliefUnitToTerrainUnit / terrainExtents.x, RELIEF_SIZE_Y * reliefUnitToTerrainUnit / terrainExtents.y);
+
+    ofImage sendMapFrom;
+    if (reliefSendMode == RELIEF_SEND_TERRAIN) {
+        sendMapFrom = heightMap;
+    } else if (reliefSendMode == RELIEF_SEND_FEATURES) {
+        sendMapFrom = featureHeightMap;
+    }
+
+    int sendMapWidth = normalizedReliefSize.x * sendMapFrom.width;
+    int sendMapHeight = normalizedReliefSize.y * sendMapFrom.height;
+    if (sendMap.width != sendMapWidth || sendMap.height != sendMapHeight) {
+        sendMap.allocate(sendMapWidth, sendMapHeight, OF_IMAGE_COLOR);
+        terrainCrop.allocate(normalizedReliefSize.x * terrainTex.width, normalizedReliefSize.y * terrainTex.height, OF_IMAGE_COLOR);
+        featureMapCrop.allocate(normalizedReliefSize.x * featureMap.width, normalizedReliefSize.y * featureMap.height, OF_IMAGE_COLOR_ALPHA);
+    }
+
+    sendMap.cropFrom(sendMapFrom, -sendMap.width / 2 + normalizedMapCenter.x * sendMapFrom.width, -sendMap.height / 2 + normalizedMapCenter.y * sendMapFrom.height, sendMap.width, sendMap.height);
     terrainCrop.cropFrom(terrainTex, -terrainCrop.width / 2 + normalizedMapCenter.x * terrainTex.width, -terrainCrop.height / 2 + normalizedMapCenter.y * terrainTex.height, terrainCrop.width, terrainCrop.height);
+    featureMapCrop.cropFrom(featureMap, -featureMapCrop.width / 2 + normalizedMapCenter.x * featureMap.width, -featureMapCrop.height / 2 + normalizedMapCenter.y * featureMap.height, featureMapCrop.width, featureMapCrop.height);
     
-    float stepY = heightMapCrop.height / RELIEF_SIZE_Y;
-    float stepX = heightMapCrop.width / RELIEF_SIZE_X;
-    
-    heightMapCropResampled.allocate(stepX * RELIEF_SIZE_X, stepY * RELIEF_SIZE_Y, OF_IMAGE_COLOR);
-    
+    float stepY = sendMap.height / RELIEF_SIZE_Y;
+    float stepX = sendMap.width / RELIEF_SIZE_X;
+        
     ofxOscMessage message;
     message.setAddress("/relief/load");
     
@@ -365,7 +551,7 @@ void testApp::updateVisibleMap()
             
             for (int sy = fromY; sy < toY; sy++) {
                 for (int sx = fromX; sx < toX; sx++) {
-                    ofColor c = heightMapCrop.getColor(sx, sy);
+                    ofColor c = sendMap.getColor(sx, sy);
                     if (c.a > 0) {
                         samp += c.r;
                     }
@@ -373,25 +559,21 @@ void testApp::updateVisibleMap()
             }
             
             float avg = samp / (float)(stepX * stepY);
-            message.addIntArg(avg / 255 * 127);
-            
-            ofColor avgColor = ofColor(avg);
-            for (int sy = fromY; sy < toY; sy++) {
-                for (int sx = fromX; sx < toX; sx++) {
-                    heightMapCropResampled.setColor(sx, sy, avgColor);
-                }
-            }
+            sendMapResampledValues[x + y * RELIEF_SIZE_Y] = avg;
+            message.addIntArg(avg / 255 * RELIEF_MAX_VALUE);
         }
     }
     
-    //reliefMessageSend(message);
-    
-    heightMapCropResampled.reloadTexture();
+    if (reliefSendMode != RELIEF_SEND_OFF) {
+    //    reliefMessageSend(message);
+    }
 }
 
 
 void testApp::reliefMessageReceived(ofxOscMessage m) {
-    
+    ofLog() << "reliefMessageReceived from " << m.getRemoteIp() << ": " << m.getAddress();
+    ofxUIToggle *indicator = (ofxUIToggle *)calibrationGUI->getWidget("RECEIVING");
+    indicator->setValue(!indicator->getValue());
 }
 
 
@@ -460,10 +642,6 @@ void testApp::drawIdentity() {
 }
 
 
-ofVec3f lngLatToVec3f(float lng, float lat) {
-    return ofVec3f(lng, lat, 0);
-}
-
 //Loads json data from a file
 void testApp::loadFeaturesFromFile(string filePath) {
 	ofFile file(filePath);
@@ -499,18 +677,33 @@ void testApp::addItemsFromJSONString(string jsonStr) {
     if (json.parse(jsonStr)) {
         int size = json["items"].size();
         gridSize = json["gridSize"].asDouble();
-        cout << "Items loaded: " << size << endl;
+        ofLog() << "map features loaded: " << size;
         for (int i = 0; i < size; i++) {
             const Json::Value item = json["items"][i];
             MapFeature *feature = new MapFeature();
-            feature->setPosition(lngLatToVec3f(item["loc"][xIndex].asDouble(), item["loc"][zIndex].asDouble()));
-            feature->normVal = item["val"]["avg"].asDouble() / MAX_VAL;
-            feature->height = min(FEATURE_HEIGHT, FEATURE_HEIGHT * feature->normVal);
-            feature->width = gridSize *.9;
-            feature->color = ofColor(min(feature->normVal * 255, 255.0f), 128, 200, 150);
-            mapFeatures.push_back(feature);
+            float lng = item["loc"][xIndex].asDouble();
+            float lat = item["loc"][zIndex].asDouble();
+            if (lng >= terrainSW.x && lng <= terrainNE.x && lat >= terrainSW.y && lat <= terrainNE.y) {
+                feature->setPosition(surfaceAt(ofVec2f(lng, lat)));
+                feature->normVal = item["val"]["avg"].asDouble() / MAX_VAL;
+                feature->height = min(featureHeight, featureHeight * feature->normVal);
+                feature->width = gridSize *.9;
+                feature->color = ofColor(min(feature->normVal * 255, 255.0f), 128 + min(feature->normVal * 128, 128.0f), 200, 150);
+                mapFeatures.push_back(feature);
+            }
         }
         mapFeaturesMesh = getMeshFromFeatures(mapFeatures);
+
+        featureMap.allocate(terrainExtents.x / gridSize, terrainExtents.y / gridSize, OF_IMAGE_COLOR_ALPHA);
+        featureHeightMap.allocate(heightMap.width, heightMap.height, OF_IMAGE_COLOR_ALPHA);
+        for (int i = 0; i < mapFeatures.size(); i++) {
+            ofVec2f normPos = (mapFeatures[i]->getPosition() - terrainSW) / terrainExtents;
+            normPos.y = 1 - normPos.y;
+            featureMap.setColor(normPos.x * featureMap.width, normPos.y * featureMap.height, ofColor(mapFeatures[i]->color.r, mapFeatures[i]->color.g, mapFeatures[i]->color.b, 255));
+            featureHeightMap.setColor(normPos.x * featureHeightMap.width, normPos.y * featureHeightMap.height, ofColor(mapFeatures[i]->normVal * 255));
+        }
+        featureMap.reloadTexture();
+        featureHeightMap.reloadTexture();
     } else {
         cout << "Error parsing JSON";
     }
@@ -522,9 +715,10 @@ ofMesh testApp::getMeshFromFeatures(std::vector<MapFeature*> mapFeatures) {
     for (int i = 0; i < mapFeatures.size(); i++) {
         
         mesh.addVertex(mapFeatures[i]->getPosition());
-        mesh.addColor(mapFeatures[i]->color);
+        ofColor c = mapFeatures[i]->color;
+        mesh.addColor(c);
         mesh.addVertex(mapFeatures[i]->getPosition() + ofVec3f(0, 0, mapFeatures[i]->height));
-        mesh.addColor(mapFeatures[i]->color);
+        mesh.addColor(c);
     }
     return mesh;
 }
@@ -586,6 +780,8 @@ void testApp::touchDoubleTap(ofTouchEventArgs & touch) {
     if (true /*t - timeSinceLastDoubleTap < 1*/) {
         updateVisibleMap();
         calibrationMode = !calibrationMode;
+        calibrationGUI->setVisible(calibrationMode);
+        layersGUI->setVisible(!calibrationMode);
     }
     timeSinceLastDoubleTap = t;
 }

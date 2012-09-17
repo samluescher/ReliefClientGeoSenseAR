@@ -6,7 +6,9 @@
 #if (TARGET_OS_IPHONE)
 #include "ofxQCAR.h"
 #include "ofxQCAR_Utils.h"
-#define USE_QCAR 1
+#define USE_QCAR true
+#else
+#define USE_QCAR false
 #endif
 
 #include "ofxiPhone.h"
@@ -15,6 +17,8 @@
 #include "ofxJSONElement.h"
 #include "ReliefClientBase.h"
 
+#include "ofPinchGestureRecognizer.h"
+#include "ofxUI.h"
 
 class testApp : public ReliefClientBase{
 	
@@ -36,11 +40,13 @@ public:
     void deviceOrientationChanged(int newOrientation);
     
     ofVboMesh terrainVboMesh;
-    ofImage heightMap, terrainTex, terrainTexAlpha, heightMapDownsampled;
+    ofImage terrainTex, terrainTexAlpha, heightMap, terrainCrop, sendMap, featureMap, featureMapCrop, featureHeightMap;
     ofVec2f terrainSW, terrainNE, terrainCenterOffset;
     ofVec3f terrainToHeightMapScale;
-    ofImage terrainCrop, heightMapCrop, heightMapCropResampled;
+    float sendMapResampledValues[RELIEF_SIZE_X * RELIEF_SIZE_Y];
     ofVec2f normalizedMapCenter, normalizedReliefSize;
+    float terrainPeakHeight, featureHeight;
+    ofVec3f surfaceAt(ofVec2f pos);
     
     std::vector<MapFeature*> mapFeatures;
     ofVboMesh mapFeaturesMesh;
@@ -57,8 +63,8 @@ public:
     ofVec2f touchPoint;
     int deviceOrientation;
     
-    float terrainUnitToCameraUnit, reliefUnitToCameraUnit;
-    bool calibrationMode;
+    float terrainUnitToCameraUnit, reliefUnitToCameraUnit, reliefUnitToTerrainUnit;
+    bool calibrationMode, zoomMode;
     float timeSinceLastDoubleTap;
     ofVec3f reliefToMarkerOffset;
     ofVec2f terrainExtents;
@@ -67,10 +73,10 @@ public:
     int noMarkerSince;
     
     ofVec3f mapCenter, newMapCenter;
-    ofEasyCam cam;
+    ofCamera cam;
     
     void drawIdentity();
-    void drawTerrain(bool transparent);
+    void drawTerrain(bool transparent, bool wireframe);
     void drawGrid(ofVec2f sw, ofVec2f ne, int subdivisionsX, int subdivisionsY, ofColor line);
     void drawGrid(ofVec2f sw, ofVec2f ne, int subdivisionsX, int subdivisionsY, ofColor line, ofColor background);
     void drawReliefGrid();
@@ -79,9 +85,20 @@ public:
     void drawGUI();
     void updateVisibleMap();
     
-    bool drawDebugEnabled;
+    bool drawTerrainEnabled, drawTerrainGridEnabled, drawDebugEnabled, drawMapFeaturesEnabled, drawMiniMapEnabled, drawWaterEnabled, tetherWaterEnabled;
     
     void reliefMessageReceived(ofxOscMessage m);
     void updateRelief();
+    int reliefSendMode;
+        
+    
+    ofPinchGestureRecognizer *pinchRecognizer;
+    void handlePinch(ofPinchEventArgs &e);
+     
+
+	ofxUICanvas *calibrationGUI, *layersGUI;
+    void guiEvent(ofxUIEventArgs &e);
+	
+    
 };
 
