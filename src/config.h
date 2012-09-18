@@ -13,19 +13,22 @@
 
 #if (TARGET_OS_IPHONE)
 
-#define OVERHEAD_HOST "18.85.58.59"
+#define IS_TOP_DOWN_CLIENT false
 
 #define LINE_WIDTH_GRID_SUBDIV 2
 #define LINE_WIDTH_GRID_WHOLE 4
 
 #else
 
+#define IS_TOP_DOWN_CLIENT true
+
 #define LINE_WIDTH_GRID_SUBDIV 1
 #define LINE_WIDTH_GRID_WHOLE 2
 
 #endif
 
-
-
+#define COLOR_GRID ofColor(100, 100, 100, 70)
+#define COLOR_WATER ofColor(0, 100, 120, 175)
+#define GUI_DISAPPEAR_FRAMES 400
 
 #endif

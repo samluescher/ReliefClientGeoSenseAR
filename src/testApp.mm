@@ -4,7 +4,6 @@
 #define NO_MARKER_TOLERANCE_FRAMES 10
 #define GRID_SUBDIVISIONS 10
 #define MAX_VAL 500.0f // for normalizing val -- this will come from db later
-#define WATER_COLOR ofColor(0, 100, 120, 200)
 #define MINI_MAP_W 350
 
 #define fukushima ofVec2f(141.033247, 37.425252)
@@ -53,23 +52,19 @@ void copyImageWithScaledColors(ofImage &from, ofImage &to, float alphaScale, flo
 }
 
 ofVec3f testApp::surfaceAt(ofVec2f pos) {
-    ofVec2f normPos = (pos - terrainSW) / terrainExtents;
-    if (normPos.x >= 0 && normPos.x <= 1 && normPos.y >= 0 && normPos.y <= 1) {
-        ofColor c = heightMap.getColor(normPos.x * heightMap.width, heightMap.height - normPos.y * heightMap.height);
-        return ofVec3f(pos.x, pos.y, c.r / 255 * terrainPeakHeight + .025);
-    }
+    /*
+     ofVec2f normPos = (pos - terrainSW) / terrainExtents;
+     if (normPos.x >= 0 && normPos.x <= 1 && normPos.y >= 0 && normPos.y <= 1) {
+     ofColor c = heightMap.getColor(normPos.x * heightMap.width, heightMap.height - normPos.y * heightMap.height);
+     return ofVec3f(pos.x, pos.y, 0);
+     }
+     */
     return ofVec3f(pos.x, pos.y, 0);
 }
-
 
 //--------------------------------------------------------------
 void testApp::setup() 
 {
-#ifdef OVERHEAD_HOST
-	overheadSender.setup(OVERHEAD_HOST, RELIEF_PORT);
-    ofLog() << "Setting up overhead sender: " << OVERHEAD_HOST;
-#endif
-    
 #if (USE_QCAR)
     ofLog() << "Initializing QCAR";
     [ofxQCAR_Utils getInstance].targetType = TYPE_FRAMEMARKERS;
@@ -80,10 +75,10 @@ void testApp::setup()
 #endif
     
     ofLog() << "Loading maps";
-    heightMap.loadImage("maps/heightmap.ASTGTM2_128,28,149,45-1600.png");
+    heightMap.loadImage("maps/heightmap.ASTGTM2_128,28,149,45-900.png");
     
 	terrainTex.loadImage("maps/srtm.ASTGTM2_128,28,149,45-14400.png");
-	terrainTexAlpha.loadImage("maps/srtm.ASTGTM2_128,28,149,45-14400-a85.png");
+	terrainTexAlpha.loadImage("maps/srtm.ASTGTM2_128,28,149,45-14400-a65.png");
     
     /*terrainTexAlpha.allocate(terrainTex.width, terrainTex.height, OF_IMAGE_COLOR_ALPHA);
      copyImageWithScaledColors(terrainTex, terrainTexAlpha, .8, .8);
@@ -101,7 +96,9 @@ void testApp::setup()
     reliefUnitToScreenUnit = 39.5f;
     
     // offset of physical Relief to physical marker
-    reliefToMarkerOffset = ofVec3f(0, /*(RELIEF_SIZE_Y / 2 + 1) * reliefUnitToScreenUnit*/265, 0);
+    reliefOffset = ofVec3f(0, 0, 0);
+    reliefToMarker1Offset = ofVec3f(0, 265, 0);
+    reliefToMarker2Offset = ofVec3f(-265, 0, 0);
     
     ofEnableNormalizedTexCoords();
     
@@ -109,7 +106,7 @@ void testApp::setup()
     terrainToHeightMapScale.z = (terrainToHeightMapScale.x + terrainToHeightMapScale.y) / 2;
     ofLog() << "terrainToHeightMapScale: " << terrainToHeightMapScale;
     terrainPeakHeight = terrainToHeightMapScale.z * 300.0f;
-    featureHeight = .08;
+    featureHeight = .5f;
     
     //int heightMapStepPixels = (heightMap.width * heightMap.height) / 1000000 * .8;
 	//terrainVboMesh = meshFromImage(heightMap, heightMapStepPixels, terrainPeakHeight);
@@ -120,12 +117,10 @@ void testApp::setup()
     
     numLoading = 0;
     ofRegisterURLNotification(this);  
-    loadFeaturesFromURL("http://map.safecast.org/api/mappoints/4ff47bc60aea6a01ec00000f?b=&"+ofToString(terrainSW.x)+"b="+ofToString(terrainSW.y)+"&b="+ofToString(terrainNE.x)+"&b="+ofToString(terrainNE.y)+"&z=8");
+    //loadFeaturesFromURL("http://map.safecast.org/api/mappoints/4ff47bc60aea6a01ec00000f?b=&"+ofToString(terrainSW.x)+"b="+ofToString(terrainSW.y)+"&b="+ofToString(terrainNE.x)+"&b="+ofToString(terrainNE.y)+"&z=8");
     
-    //loadFeaturesFromFile("json/safecast.8.json");
+    loadFeaturesFromFile("json/safecast.8.json");
     //loadFeaturesFromFile("json/earthquakes.json");
-    
-    timeSinceLastDoubleTap = 0;
     
 #if (TARGET_OS_IPHONE)
     EAGLView *view = ofxiPhoneGetGLView();  
@@ -142,30 +137,30 @@ void testApp::setup()
     drawWaterEnabled = false;
     tetherWaterEnabled = false;
     waterLevel = 0.017;
-    reliefSendMode = RELIEF_SEND_TERRAIN;
+    reliefSendMode = RELIEF_SEND_OFF;
     
-    #if !(TARGET_OS_IPHONE)
+#if !(TARGET_OS_IPHONE)
     fullscreenEnabled = false;
     ofSetFullscreen(fullscreenEnabled);
-    #endif
+#endif
     
     float guiW = 350;
     float spacing = OFX_UI_GLOBAL_WIDGET_SPACING;
-    #if (TARGET_OS_IPHONE)
+#if (TARGET_OS_IPHONE)
     float dim = 100; // Retina resolution
 	layersGUI->setWidgetFontSize(OFX_UI_FONT_LARGE);
-    #else
+#else
     float dim = 16;
-    #endif
+#endif
     
     layersGUI = new ofxUICanvas(spacing, spacing, guiW, ofGetHeight() * .6);     
-    #if !(TARGET_OS_IPHONE)
+#if !(TARGET_OS_IPHONE)
 	layersGUI->addToggle("FULLSCREEN", fullscreenEnabled, dim, dim);
 	layersGUI->addToggle("ORTHOGONAL", cam.getOrtho(), dim, dim);
-//    layersGUI->addButton("RESET CAMERA", false, dim, dim);
+    //    layersGUI->addButton("RESET CAMERA", false, dim, dim);
 	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
-    #endif
-    layersGUI->addSlider("ZOOM", 100, 1600, 1 / terrainUnitToScreenUnit, guiW - spacing * 2, dim);
+#endif
+    layersGUI->addSlider("ZOOM", 300, 1600, 1 / terrainUnitToScreenUnit, guiW - spacing * 2, dim);
 	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
 	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
 	layersGUI->addToggle("TERRAIN", drawTerrainEnabled, dim, dim);
@@ -173,7 +168,7 @@ void testApp::setup()
 	layersGUI->addToggle("FEATURES", drawMapFeaturesEnabled, dim, dim);
 	layersGUI->addToggle("MINIMAP", drawMiniMapEnabled, dim, dim);
 	layersGUI->addToggle("WATER", drawWaterEnabled, dim, dim);
-    layersGUI->addSlider("WATER LEVEL", 0, .3, waterLevel, guiW - spacing * 2, dim);
+    layersGUI->addSlider("WATER LEVEL", 0, .125, waterLevel, guiW - spacing * 2, dim);
 	layersGUI->addToggle("DEBUG", drawDebugEnabled, dim, dim);
     
 	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
@@ -181,12 +176,12 @@ void testApp::setup()
 	layersGUI->addWidgetDown(new ofxUILabel("RELIEF SERVER", OFX_UI_FONT_LARGE)); 
 	layersGUI->addToggle("SEND TERRAIN", reliefSendMode == RELIEF_SEND_TERRAIN, dim, dim);
 	layersGUI->addToggle("SEND FEATURES", reliefSendMode == RELIEF_SEND_FEATURES, dim, dim);
-
+    
     /*
-	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
-	layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
-	layersGUI->addWidgetDown(new ofxUILabel("SIMULATION", OFX_UI_FONT_LARGE)); 
-	layersGUI->addToggle("TETHER WATER", tetherWaterEnabled, dim, dim);
+     layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+     layersGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+     layersGUI->addWidgetDown(new ofxUILabel("SIMULATION", OFX_UI_FONT_LARGE)); 
+     layersGUI->addToggle("TETHER WATER", tetherWaterEnabled, dim, dim);
      */
     
     layersGUI->setDrawBack(true);
@@ -198,16 +193,29 @@ void testApp::setup()
 	calibrationGUI->addWidgetDown(new ofxUILabel("RELIEF SERVER", OFX_UI_FONT_LARGE)); 
 	calibrationGUI->setWidgetFontSize(OFX_UI_FONT_LARGE);
 	calibrationGUI->addWidgetDown(new ofxUILabel("HOST", OFX_UI_FONT_MEDIUM));
-	calibrationGUI->addTextInput("RELIEF_HOST", RELIEF_HOST, guiW - spacing);
+	calibrationGUI->addTextInput("RELIEF_HOST", RELIEF_HOST, guiW - spacing * 2);
     
-	calibrationGUI->addTextInput("RELIEF_PORT", ofToString(RELIEF_PORT), guiW - spacing);    
-    calibrationGUI->setDrawBack(false);
+	calibrationGUI->addTextInput("RELIEF_PORT", ofToString(RELIEF_PORT), guiW - spacing * 2);    
+    
+    calibrationGUI->setDrawBack(true);
+    calibrationGUI->setColorBack(ofColor(60, 60, 60, 100));
     calibrationGUI->setVisible(false);
 	calibrationGUI->addToggle("RECEIVING", false, dim, dim);
+	calibrationGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+	calibrationGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+    calibrationGUI->addSlider("RELIEF OFFSET X", -200, 200, reliefOffset.x, guiW - spacing * 2, dim);
+    calibrationGUI->addSlider("RELIEF OFFSET Y", -200, 200, reliefOffset.y, guiW - spacing * 2, dim);
+    calibrationGUI->addSlider("RELIEF OFFSET Z", -200, 200, reliefOffset.y, guiW - spacing * 2, dim);
 	ofAddListener(calibrationGUI->newGUIEvent,this,&testApp::guiEvent);
     
     //cam.disableMouseInput();
     resetCam();
+#if !(TARGET_OS_IPHONE)
+    ofEnableSmoothing();
+#endif
+    
+    cursorNotMovedSince = 0;
+    
 }
 
 void testApp::resetCam() 
@@ -217,7 +225,7 @@ void testApp::resetCam()
     cam.setPosition(mapCenter);
     cam.move(0, 0, 3);
     cam.lookAt(mapCenter,ofVec3f(0,1,0));
-    updateVisibleMap();
+    updateVisibleMap(true);
 }
 
 void testApp::guiEvent(ofxUIEventArgs &e)
@@ -268,7 +276,7 @@ void testApp::guiEvent(ofxUIEventArgs &e)
                 ofxUIToggle *other = (ofxUIToggle *)layersGUI->getWidget("SEND FEATURES");
                 other->setValue(false);
                 reliefSendMode = RELIEF_SEND_TERRAIN;
-                updateVisibleMap();
+                updateVisibleMap(false);
             } else {
                 reliefSendMode = RELIEF_SEND_OFF;
             }
@@ -278,7 +286,7 @@ void testApp::guiEvent(ofxUIEventArgs &e)
                 ofxUIToggle *other = (ofxUIToggle *)layersGUI->getWidget("SEND TERRAIN");
                 other->setValue(false);
                 reliefSendMode = RELIEF_SEND_FEATURES;
-                updateVisibleMap();
+                updateVisibleMap(false);
             } else {
                 reliefSendMode = RELIEF_SEND_OFF;
             }
@@ -288,10 +296,19 @@ void testApp::guiEvent(ofxUIEventArgs &e)
         float value = slider->getScaledValue(); 
         if (name == "ZOOM") {
             terrainUnitToScreenUnit = 1 / value;
-            updateVisibleMap();
+            updateVisibleMap(true);
         }
         if (name == "WATER LEVEL") {
             waterLevel = value; 
+        }
+        if (name == "RELIEF OFFSET X") {
+            reliefOffset.x = value; 
+        }
+        if (name == "RELIEF OFFSET Y") {
+            reliefOffset.y = value; 
+        }
+        if (name == "RELIEF OFFSET Z") {
+            reliefOffset.z = value; 
         }
     }
     
@@ -304,6 +321,10 @@ void testApp::update()
 #if (USE_QCAR)
     ofxQCAR::getInstance()->update();
 #endif
+    cursorNotMovedSince++;
+    if (!calibrationMode) {
+        layersGUI->setVisible(cursorNotMovedSince < GUI_DISAPPEAR_FRAMES);
+    }
 }
 
 //--------------------------------------------------------------
@@ -329,7 +350,6 @@ void testApp::drawTerrain(bool transparent, bool wireframe) {
 
 void testApp::drawMapFeatures() 
 {
-    glLineWidth(10);
     mapFeaturesMesh.draw();
 }
 
@@ -340,6 +360,14 @@ void testApp::draw()
     qcar->draw();
     
     if (qcar->hasFoundMarker()) {
+        string markerName = qcar->getMarkerName();
+        if (markerName == "MarkerQ") {
+            reliefOffset = reliefToMarker1Offset;
+        } else if (qcar->getMarkerName() == "MarkerC") {
+            reliefOffset = reliefToMarker2Offset;
+        } else {
+            reliefOffset = ofVec3f(0, 0, 0);
+        }
         modelViewMatrix = qcar->getProjectionMatrix();
         projectionMatrix = qcar->getModelViewMatrix();
         noMarkerSince = 0;
@@ -373,18 +401,21 @@ void testApp::draw()
     }
 #endif
     
-    ofScale(1 / terrainUnitToScreenUnit, 1 / terrainUnitToScreenUnit, 1 / terrainUnitToScreenUnit);
-    #if !(TARGET_OS_IPHONE)
-    ofEnableSmoothing();
-    #endif
+    ofTranslate(reliefOffset);
+#if (IS_TOP_DOWN_CLIENT)
+#endif
     
-    if (drawWaterEnabled) {
+    ofPushMatrix();
+    
+    ofScale(1 / terrainUnitToScreenUnit, 1 / terrainUnitToScreenUnit, 1 / terrainUnitToScreenUnit);
+    
+    if (drawWaterEnabled && !calibrationMode) {
         ofPushMatrix();
         ofEnableBlendMode(OF_BLENDMODE_ALPHA);
         glEnable(GL_DEPTH_TEST);
         ofTranslate(0, 0, -.51);
         ofScale(terrainExtents.x, terrainExtents.y, 1 + waterLevel);
-        ofSetColor(WATER_COLOR);
+        ofSetColor(COLOR_WATER);
         ofFill();
         ofBox(1);
         ofDisableBlendMode(); 
@@ -395,38 +426,36 @@ void testApp::draw()
     ofPushMatrix();
     ofTranslate(-mapCenter);
     
-    if (!calibrationMode) {
-        if (drawTerrainEnabled) {
-            #if !(TARGET_OS_IPHONE)
-            ofDisableBlendMode(); // TODO: for some reason mesh is not textured on OSX if alpha blending enabled
-            #else
-            ofEnableBlendMode(OF_BLENDMODE_ALPHA);
-            #endif
-            glEnable(GL_DEPTH_TEST);
-            drawTerrain(useARMatrix, false);
-            glDisable(GL_DEPTH_TEST);
-            ofDisableBlendMode(); 
-        }
-        
-        if (drawDebugEnabled) {
-            ofEnableBlendMode(OF_BLENDMODE_ALPHA);
-            drawTerrain(false, true);
-            ofDisableBlendMode(); 
-        }
-        
-        if (drawMapFeaturesEnabled) {
-            ofEnableBlendMode(OF_BLENDMODE_ALPHA);
-            glEnable(GL_DEPTH_TEST);
-            drawMapFeatures();
-            glDisable(GL_DEPTH_TEST);
-            ofDisableBlendMode(); 
-        }
-        
-        if (drawTerrainGridEnabled) {
-            ofEnableBlendMode(OF_BLENDMODE_ALPHA);
-            drawTerrainGrid();
-            ofDisableBlendMode(); 
-        }
+    if (drawTerrainEnabled && !calibrationMode) {
+#if !(TARGET_OS_IPHONE)
+        ofDisableBlendMode(); // TODO: for some reason mesh is not textured on OSX if alpha blending enabled
+#else
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+#endif
+        glEnable(GL_DEPTH_TEST);
+        drawTerrain(useARMatrix, false);
+        glDisable(GL_DEPTH_TEST);
+        ofDisableBlendMode(); 
+    }
+    
+    if (drawDebugEnabled || calibrationMode) {
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+        drawTerrain(false, true);
+        ofDisableBlendMode(); 
+    }
+    
+    if (drawMapFeaturesEnabled && !calibrationMode) {
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+        //glEnable(GL_DEPTH_TEST);
+        drawMapFeatures();
+        //glDisable(GL_DEPTH_TEST);
+        ofDisableBlendMode(); 
+    }
+    
+    if (drawTerrainGridEnabled || calibrationMode) {
+        ofEnableBlendMode(OF_BLENDMODE_ALPHA);
+        drawTerrainGrid();
+        ofDisableBlendMode(); 
     }
     
     ofPopMatrix();
@@ -435,16 +464,19 @@ void testApp::draw()
     if (drawDebugEnabled || calibrationMode) {
         drawIdentity();
     }
+    
     ofPopMatrix();
     
     if (drawDebugEnabled || calibrationMode) {
         drawReliefGrid();
     }
     
+    ofPopMatrix();
+    
     ofPopView();
     
 #if (USE_QCAR)
-    if (useARMatrix && drawDebugEnabled) {
+    if (qcar->hasFoundMarker() && (drawDebugEnabled || calibrationMode)) {
         ofSetColor(255);
         qcar->drawMarkerCenter();
     }
@@ -462,13 +494,13 @@ void testApp::drawGUI()
 {
     if (drawMiniMapEnabled) {
         ofEnableBlendMode(OF_BLENDMODE_ALPHA);
-        #if (TARGET_OS_IPHONE)
+#if (TARGET_OS_IPHONE)
         switch (deviceOrientation) {
             case OFXIPHONE_ORIENTATION_LANDSCAPE_RIGHT:
             case OFXIPHONE_ORIENTATION_LANDSCAPE_LEFT:
                 break;
         }
-        #endif
+#endif
         glLineWidth(1);
         
         float miniMapW = MINI_MAP_W;
@@ -476,7 +508,7 @@ void testApp::drawGUI()
         float miniMapH = miniMapUnitsToHeightMapUnits * heightMap.height;
         ofVec2f p = ofVec2f(ofGetWidth() - miniMapW - OFX_UI_GLOBAL_WIDGET_SPACING, OFX_UI_GLOBAL_WIDGET_SPACING);
         ofFill();
-        ofSetColor(WATER_COLOR);
+        ofSetColor(COLOR_WATER);
         ofRect(p, miniMapW, miniMapH);
         ofSetColor(255);
         
@@ -484,7 +516,6 @@ void testApp::drawGUI()
         if (drawMapFeaturesEnabled && featureMap.isAllocated()) {
             featureMap.draw(p, miniMapW, miniMapH);
         }
-        
         
         ofPushMatrix();
         ofTranslate(p.x, p.y + miniMapH);
@@ -502,9 +533,6 @@ void testApp::drawGUI()
             }
         }
         
-        ofNoFill();
-        ofSetColor(0, 255, 150, 250);
-        ofCircle(mapCenter, .5);
         ofPopMatrix();
         
         ofPushMatrix();
@@ -525,7 +553,7 @@ void testApp::drawGUI()
         int imgH = miniMapW / terrainCrop.width * terrainCrop.height;
         p += ofVec2f(0, miniMapH + OFX_UI_GLOBAL_WIDGET_SPACING);
         ofFill();
-        ofSetColor(WATER_COLOR);
+        ofSetColor(COLOR_WATER);
         ofRect(p, miniMapW, imgH);
         ofSetColor(255);
         terrainCrop.draw(p, miniMapW, imgH);
@@ -582,7 +610,7 @@ void testApp::drawGUI()
         if (calibrationMode) {
             msg += "\n---CALIBRATION MODE---";
             msg += "\nreliefUnitToScreenUnit: " + ofToString(reliefUnitToScreenUnit);
-            msg += "\nreliefToMarkerOffset: " + ofToString(reliefToMarkerOffset);
+            msg += "\nreliefOffset: " + ofToString(reliefOffset);
         }    
         
         ofVec2f consolePos = ofVec2f(ofGetWidth() / 2, 20);
@@ -601,89 +629,99 @@ void testApp::drawGrid(ofVec2f sw, ofVec2f ne, int subdivisionsX, int subdivisio
     drawGrid(sw, ne, subdivisionsX, subdivisionsY, line);
 }
 
-void testApp::updateVisibleMap()
+void testApp::updateVisibleMap(bool updateServer)
 {
     reliefUnitToTerrainUnit = reliefUnitToScreenUnit / (1 / terrainUnitToScreenUnit);
     
-    normalizedMapCenter = ((mapCenter - terrainSW) + reliefToMarkerOffset * terrainUnitToScreenUnit) / terrainExtents;    
+    normalizedMapCenter = (mapCenter - terrainSW) / terrainExtents;    
     normalizedMapCenter.y = 1 - normalizedMapCenter.y;
     normalizedReliefSize = ofVec2f(RELIEF_SIZE_X * reliefUnitToTerrainUnit / terrainExtents.x, RELIEF_SIZE_Y * reliefUnitToTerrainUnit / terrainExtents.y);
     
-    ofImage sendMapFrom;
-    if (reliefSendMode == RELIEF_SEND_TERRAIN) {
-        sendMapFrom = heightMap;
-    } else if (reliefSendMode == RELIEF_SEND_FEATURES) {
-        sendMapFrom = featureHeightMap;
-    }
-    
-    int sendMapWidth = normalizedReliefSize.x * sendMapFrom.width;
-    int sendMapHeight = normalizedReliefSize.y * sendMapFrom.height;
-    //if (sendMap.width != sendMapWidth || sendMap.height != sendMapHeight) {
-    sendMap.allocate(sendMapWidth, sendMapHeight, OF_IMAGE_COLOR);
     terrainCrop.allocate(normalizedReliefSize.x * terrainTex.width, normalizedReliefSize.y * terrainTex.height, OF_IMAGE_COLOR);
     featureMapCrop.allocate(normalizedReliefSize.x * featureMap.width, normalizedReliefSize.y * featureMap.height, OF_IMAGE_COLOR_ALPHA);
-    //}
     
-    sendMap.cropFrom(sendMapFrom, -sendMap.width / 2 + normalizedMapCenter.x * sendMapFrom.width, -sendMap.height / 2 + normalizedMapCenter.y * sendMapFrom.height, sendMap.width, sendMap.height);
     terrainCrop.cropFrom(terrainTex, -terrainCrop.width / 2 + normalizedMapCenter.x * terrainTex.width, -terrainCrop.height / 2 + normalizedMapCenter.y * terrainTex.height, terrainCrop.width, terrainCrop.height);
     featureMapCrop.cropFrom(featureMap, -featureMapCrop.width / 2 + normalizedMapCenter.x * featureMap.width, -featureMapCrop.height / 2 + normalizedMapCenter.y * featureMap.height, featureMapCrop.width, featureMapCrop.height);
     
-    float stepY = sendMap.height / RELIEF_SIZE_Y;
-    float stepX = sendMap.width / RELIEF_SIZE_X;
-    
-    ofxOscMessage message;
-    message.setAddress("/relief/load");
-    
-    for (int x = RELIEF_SIZE_X - 1; x >= 0; x--) {
-        for (int y = 0; y < RELIEF_SIZE_Y; y++) {
-            
-            int samp = 0;
-            int fromX = x * stepX;
-            int fromY = y * stepY;
-            int toX = fromX + stepX;
-            int toY = fromY + stepY;
-            
-            for (int sy = fromY; sy < toY; sy++) {
-                for (int sx = fromX; sx < toX; sx++) {
-                    ofColor c = sendMap.getColor(sx, sy);
-                    if (c.a > 0) {
-                        samp += c.r;
+    if (reliefSendMode != RELIEF_SEND_OFF) {
+        ofImage sendMapFrom;
+        if (reliefSendMode == RELIEF_SEND_TERRAIN) {
+            sendMapFrom = heightMap;
+        } else if (reliefSendMode == RELIEF_SEND_FEATURES) {
+            sendMapFrom = featureHeightMap;
+        }
+        
+        int sendMapWidth = normalizedReliefSize.x * sendMapFrom.width;
+        int sendMapHeight = normalizedReliefSize.y * sendMapFrom.height;
+        sendMap.allocate(sendMapWidth, sendMapHeight, OF_IMAGE_COLOR);
+        
+        sendMap.cropFrom(sendMapFrom, -sendMap.width / 2 + normalizedMapCenter.x * sendMapFrom.width, -sendMap.height / 2 + normalizedMapCenter.y * sendMapFrom.height, sendMap.width, sendMap.height);
+        
+        ofxOscMessage message;
+        message.setAddress("/relief/load");
+        float stepY = sendMap.height / RELIEF_SIZE_Y;
+        float stepX = sendMap.width / RELIEF_SIZE_X;
+        
+        for (int x = RELIEF_SIZE_X - 1; x >= 0; x--) {
+            for (int y = 0; y < RELIEF_SIZE_Y; y++) {
+                
+                int samp = 0;
+                int fromX = x * stepX;
+                int fromY = y * stepY;
+                int toX = fromX + stepX;
+                int toY = fromY + stepY;
+                
+                for (int sy = fromY; sy < toY; sy++) {
+                    for (int sx = fromX; sx < toX; sx++) {
+                        ofColor c = sendMap.getColor(sx, sy);
+                        if (c.a > 0) {
+                            samp += c.r;
+                        }
                     }
                 }
+                
+                float avg = samp / (float)(stepX * stepY);
+                sendMapResampledValues[x + y * RELIEF_SIZE_Y] = avg;
+                message.addIntArg(avg / 255 * RELIEF_MAX_VALUE);
             }
-            
-            float avg = samp / (float)(stepX * stepY);
-            sendMapResampledValues[x + y * RELIEF_SIZE_Y] = avg;
-            message.addIntArg(avg / 255 * RELIEF_MAX_VALUE);
+        }
+        
+        if (updateServer) {
+            if (reliefSendMode != RELIEF_SEND_OFF) {
+                reliefMessageSend(message);
+            }
         }
     }
     
-    if (reliefSendMode != RELIEF_SEND_OFF) {
-        //    reliefMessageSend(message);
+#if !(IS_TOP_DOWN_CLIENT)
+    if (updateServer) {
+        ofxOscMessage m;
+        m.setAddress("/relief/broadcast/map/position");
+        m.addFloatArg(mapCenter.x);
+        m.addFloatArg(mapCenter.y);
+        m.addFloatArg(terrainUnitToScreenUnit);
+        ofLog() << "broadcast new map position";
+        reliefMessageSend(m);
     }
-    
-#ifdef OVERHEAD_HOST
-    ofxOscMessage m;
-    m.setAddress("/map/position");
-    m.addFloatArg(mapCenter.x);
-    m.addFloatArg(mapCenter.y);
-    m.addFloatArg(terrainUnitToScreenUnit);
-    overheadSender.sendMessage(m);
 #endif
 }
-
 
 void testApp::reliefMessageReceived(ofxOscMessage m) 
 {
     ofxUIToggle *indicator = (ofxUIToggle *)calibrationGUI->getWidget("RECEIVING");
     indicator->setValue(!indicator->getValue());
     
-    if (m.getAddress() == "/map/position") {
+    if (m.getAddress() == "/relief/broadcast/map/position") {
         ofLog() << "reliefMessageReceived from " << m.getRemoteIp() << ": " << m.getAddress();
         mapCenter.x = m.getArgAsFloat(0);
         mapCenter.y = m.getArgAsFloat(1);
-        ofLog() << "position: " << mapCenter;
-        updateVisibleMap();
+        terrainUnitToScreenUnit = m.getArgAsFloat(2);
+        
+        ofxUISlider *slider = (ofxUISlider *)layersGUI->getWidget("ZOOM");
+        slider->setValue(1 / terrainUnitToScreenUnit);
+        
+        ofLog() << "position: " << mapCenter << ", terrainUnitToScreenUnit: " << terrainUnitToScreenUnit;
+        updateVisibleMap(false);
     }
 }
 
@@ -716,23 +754,14 @@ void testApp::drawGrid(ofVec2f sw, ofVec2f ne, int subdivisionsX, int subdivisio
         ofLine(ofVec3f(sw.x, y, 0), ofVec3f(ne.x, y, 0));
         index++;
     }
-    
-    ofFill();
-    ofSetColor(255, 0, 0);
-    ofSphere(terrainSW.x, terrainSW.y, 0, .25);
-    
-    ofFill();
-    ofSetColor(255, 255, 0);
-    ofSphere(terrainNE.x, terrainNE.y, 0, .25);
 }
 
 void testApp::drawTerrainGrid() {
-    drawGrid(terrainSW, terrainNE, GRID_SUBDIVISIONS, GRID_SUBDIVISIONS, ofColor(60, 60, 60, 70));
+    drawGrid(terrainSW, terrainNE, GRID_SUBDIVISIONS, GRID_SUBDIVISIONS, COLOR_GRID);
 }
 
 void testApp::drawReliefGrid() {
     ofPushMatrix();
-    ofTranslate(reliefToMarkerOffset);
     ofScale(reliefUnitToScreenUnit, reliefUnitToScreenUnit, reliefUnitToScreenUnit);
     float reliefScreenW = RELIEF_SIZE_X;
     float reliefScreenH = RELIEF_SIZE_Y;
@@ -743,7 +772,7 @@ void testApp::drawReliefGrid() {
 }
 
 void testApp::drawIdentity() {
-    glLineWidth(6);
+    glLineWidth(LINE_WIDTH_GRID_WHOLE);
     ofSetColor(255, 0, 0);
     ofLine(ofVec3f(0, 0, 0), ofVec3f(1, 0, 0));
     ofSetColor(0, 255, 0);
@@ -799,7 +828,10 @@ void testApp::addItemsFromJSONString(string jsonStr) {
                 feature->normVal = item["val"]["avg"].asDouble() / MAX_VAL;
                 feature->height = min(featureHeight, featureHeight * feature->normVal);
                 feature->width = gridSize *.9;
-                feature->color = ofColor(min(feature->normVal * 255, 255.0f), 128 + min(feature->normVal * 128, 128.0f), 200, 125);
+                feature->color = ofColor(min(feature->normVal * 190, 255.0f), 128 + min(feature->normVal * 128, 128.0f), 200, 20);
+#if (IS_TOP_DOWN_CLIENT)
+                feature->color.a = 255;
+#endif
                 mapFeatures.push_back(feature);
             }
         }
@@ -815,35 +847,85 @@ void testApp::addItemsFromJSONString(string jsonStr) {
         }
         featureMap.reloadTexture();
         featureHeightMap.reloadTexture();
-        updateVisibleMap();
+        updateVisibleMap(false);
     } else {
         cout << "Error parsing JSON";
     }
 }
 
-ofMesh testApp::getMeshFromFeatures(std::vector<MapFeature*> mapFeatures) {
+vector<ofVec3f> oftrianglesForRect(ofRectangle rect) {
+    vector<ofVec3f> vertices;
+    
+    vertices.push_back(ofVec3f(rect.x, rect.y));
+    
+    return vertices;
+}
+
+ofMesh testApp::getMeshFromFeatures(vector<MapFeature*> mapFeatures) {
     ofMesh mesh;
-	mesh.setMode(OF_PRIMITIVE_LINES);
+	mesh.setMode(OF_PRIMITIVE_TRIANGLES);
     for (int i = 0; i < mapFeatures.size(); i++) {
         
         ofColor c = mapFeatures[i]->color;
+        float w = mapFeatures[i]->width;
+        float h = mapFeatures[i]->height;
+        ofVec3f sw = mapFeatures[i]->getPosition() - w / 2;
+        vector<ofVec3f> verts;
         
-        mesh.addVertex(mapFeatures[i]->getPosition());
-        mesh.addColor(c);
-        mesh.addVertex(mapFeatures[i]->getPosition() + ofVec3f(0, 0, mapFeatures[i]->height));
-        mesh.addColor(c);
+        // south face
+        mesh.addVertex(sw + ofVec3f(0, 0, 0));
+        mesh.addVertex(sw + ofVec3f(w, 0, 0));
+        mesh.addVertex(sw + ofVec3f(w, 0, h));        
+        mesh.addVertex(sw + ofVec3f(0, 0, 0));
+        mesh.addVertex(sw + ofVec3f(0, 0, h));
+        mesh.addVertex(sw + ofVec3f(w, 0, h));
         
-        #if !(TARGET_OS_IPHONE)
-        mesh.addVertex(mapFeatures[i]->getPosition());
-        mesh.addColor(c);
-        // todo add real bars
-        mesh.addVertex(mapFeatures[i]->getPosition() + ofVec3f(0, mapFeatures[i]->width * .65, 0));
-        mesh.addColor(c);
-        #endif
+        // north
+        mesh.addVertex(sw + ofVec3f(0, w, 0));
+        mesh.addVertex(sw + ofVec3f(w, w, 0));
+        mesh.addVertex(sw + ofVec3f(w, w, h));        
+        mesh.addVertex(sw + ofVec3f(0, w, 0));
+        mesh.addVertex(sw + ofVec3f(0, w, h));
+        mesh.addVertex(sw + ofVec3f(w, w, h));
+        
+        // west
+        mesh.addVertex(sw + ofVec3f(0, 0, 0));
+        mesh.addVertex(sw + ofVec3f(0, w, 0));
+        mesh.addVertex(sw + ofVec3f(0, w, h));        
+        mesh.addVertex(sw + ofVec3f(0, 0, 0));
+        mesh.addVertex(sw + ofVec3f(0, 0, h));
+        mesh.addVertex(sw + ofVec3f(0, w, h));
+        
+        // east
+        mesh.addVertex(sw + ofVec3f(w, 0, 0));
+        mesh.addVertex(sw + ofVec3f(w, w, 0));
+        mesh.addVertex(sw + ofVec3f(w, w, h));        
+        mesh.addVertex(sw + ofVec3f(w, 0, 0));
+        mesh.addVertex(sw + ofVec3f(w, 0, h));
+        mesh.addVertex(sw + ofVec3f(w, w, h));
+        
+        // roof
+        mesh.addVertex(sw + ofVec3f(0, 0, h));
+        mesh.addVertex(sw + ofVec3f(w, 0, h));
+        mesh.addVertex(sw + ofVec3f(w, w, h));        
+        mesh.addVertex(sw + ofVec3f(0, 0, h));
+        mesh.addVertex(sw + ofVec3f(0, w, h));
+        mesh.addVertex(sw + ofVec3f(w, w, h));
+        
+        for (int j = 0; j < 30; j++) {
+            mesh.addColor(c);
+        }
+        
     }
     return mesh;
 }
 
+void testApp::setCalibrationMode(bool state) 
+{
+    calibrationMode = state;
+    calibrationGUI->setVisible(calibrationMode);
+    layersGUI->setVisible(!calibrationMode);
+}
 
 
 //--------------------------------------------------------------
@@ -853,7 +935,58 @@ void testApp::exit(){
 #endif
 }
 
-#if (TARGET_OS_IPHONE)
+#if !(TARGET_OS_IPHONE)
+
+//--------------------------------------------------------------
+void testApp::keyPressed  (int key){
+    ofLog() << key;
+    switch (key) {
+        case 99:
+        case 67:
+            setCalibrationMode(!calibrationMode);
+    }
+}
+
+//--------------------------------------------------------------
+void testApp::keyReleased(int key){
+    
+}
+
+//--------------------------------------------------------------
+void testApp::mouseMoved(int x, int y ){
+    cursorNotMovedSince = 0;
+}
+
+//--------------------------------------------------------------
+void testApp::mouseDragged(int x, int y, int button){
+    
+}
+
+//--------------------------------------------------------------
+void testApp::mousePressed(int x, int y, int button){
+    cursorNotMovedSince = 0;
+}
+
+//--------------------------------------------------------------
+void testApp::mouseReleased(int x, int y, int button){
+}
+
+//--------------------------------------------------------------
+void testApp::windowResized(int w, int h){
+    
+}
+
+//--------------------------------------------------------------
+void testApp::gotMessage(ofMessage msg){
+    
+}
+
+//--------------------------------------------------------------
+void testApp::dragEvent(ofDragInfo dragInfo){ 
+    
+}
+
+#else
 
 void testApp::handlePinch(ofPinchEventArgs &e) {
     /*
@@ -868,6 +1001,7 @@ void testApp::handlePinch(ofPinchEventArgs &e) {
 
 //--------------------------------------------------------------
 void testApp::touchDown(ofTouchEventArgs & touch) {
+    cursorNotMovedSince = 0;
     isPanning = (touch.x > ofGetWidth() * .3 || touch.y > ofGetHeight() * .5);
     touchPoint = ofVec2f(touch.x, touch.y);
 }
@@ -875,6 +1009,7 @@ void testApp::touchDown(ofTouchEventArgs & touch) {
 //--------------------------------------------------------------
 void testApp::touchMoved(ofTouchEventArgs & touch)
 {
+    cursorNotMovedSince = 0;
     ofVec2f lastTouchPoint = ofVec2f(touch.x, touch.y);
     ofVec2f delta = lastTouchPoint - touchPoint;
     
@@ -894,15 +1029,9 @@ void testApp::touchMoved(ofTouchEventArgs & touch)
     }
     touchPoint = lastTouchPoint;
     
-    if (calibrationMode) {
-        reliefUnitToScreenUnit += delta.x * .1;
-        reliefToMarkerOffset.y += delta.y * .1;
-        return;
-    }
-    
     if (isPanning) {
         mapCenter += delta * terrainUnitToScreenUnit;      
-        updateVisibleMap();
+        updateVisibleMap(true);
     }
 }
 
@@ -913,15 +1042,8 @@ void testApp::touchUp(ofTouchEventArgs & touch){
 
 //--------------------------------------------------------------
 void testApp::touchDoubleTap(ofTouchEventArgs & touch) {
-    float t = ofGetElapsedTimef();
-    cout << t - timeSinceLastDoubleTap << "\n";
-    if (true /*t - timeSinceLastDoubleTap < 1*/) {
-        updateVisibleMap();
-        calibrationMode = !calibrationMode;
-        calibrationGUI->setVisible(calibrationMode);
-        layersGUI->setVisible(!calibrationMode);
-    }
-    timeSinceLastDoubleTap = t;
+    updateVisibleMap(false);
+    setCalibrationMode(!calibrationMode);
 }
 
 //--------------------------------------------------------------

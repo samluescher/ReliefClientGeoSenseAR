@@ -9,7 +9,7 @@
 
 #define RELIEF_SIZE_X 12
 #define RELIEF_SIZE_Y 12
-#define RELIEF_MAX_VALUE 127
+#define RELIEF_MAX_VALUE 255
 
 #if (TARGET_OS_IPHONE)
 #include "ofxiPhone.h"

@@ -41,7 +41,20 @@ public:
     void gotFocus();
     void gotMemoryWarning();
     void deviceOrientationChanged(int newOrientation);
+#else
+	void keyPressed(int key);
+	void keyReleased(int key);
+    
+	void mouseMoved(int x, int y );
+	void mouseDragged(int x, int y, int button);
+	void mousePressed(int x, int y, int button);
+	void mouseReleased(int x, int y, int button);
+	void windowResized(int w, int h);
+	void dragEvent(ofDragInfo dragInfo);
+	void gotMessage(ofMessage msg);
 #endif
+    
+    void setCalibrationMode(bool state);
     
     ofVboMesh terrainVboMesh;
     ofImage terrainTex, terrainTexAlpha, heightMap, terrainCrop, sendMap, featureMap, featureMapCrop, featureHeightMap;
@@ -72,7 +85,7 @@ public:
     float terrainUnitToScreenUnit, reliefUnitToScreenUnit, reliefUnitToTerrainUnit;
     bool calibrationMode, zoomMode;
     float timeSinceLastDoubleTap;
-    ofVec3f reliefToMarkerOffset;
+    ofVec3f reliefOffset, reliefToMarker1Offset, reliefToMarker2Offset;
     ofVec2f terrainExtents;
     
     ofMatrix4x4 modelViewMatrix, projectionMatrix;
@@ -90,13 +103,15 @@ public:
     void drawTerrainGrid();
     void drawMapFeatures();
     void drawGUI();
-    void updateVisibleMap();
+    void updateVisibleMap(bool updateServer);
     
     bool drawTerrainEnabled, drawTerrainGridEnabled, drawDebugEnabled, drawMapFeaturesEnabled, drawMiniMapEnabled, drawWaterEnabled, tetherWaterEnabled, fullscreenEnabled;
     
     void reliefMessageReceived(ofxOscMessage m);
     void updateRelief();
     int reliefSendMode;
+    
+    int cursorNotMovedSince;
     
     
 #if (TARGET_OS_IPHONE)
@@ -106,7 +121,5 @@ public:
     
 	ofxUICanvas *calibrationGUI, *layersGUI;
     void guiEvent(ofxUIEventArgs &e);
-	
-    ofxOscSender overheadSender;
 };
 

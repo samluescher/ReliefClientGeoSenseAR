@@ -59,7 +59,7 @@ ofMesh meshFromImage(ofImage& img, int skip, float maxHeight) {
 	mesh.setMode(OF_PRIMITIVE_TRIANGLES);
 	int width = img.getWidth();
 	int height = img.getHeight();
-    int numFaces;
+    double numFaces;
     float ws = width;
     float hs = height;
 	ofVec3f zero(0, 0, 0);
