@@ -482,6 +482,10 @@ void testApp::draw()
         drawReliefGrid();
     }
     
+#if (IS_TOP_DOWN_CLIENT)
+    drawReliefFrame();
+#endif
+    
     ofPopMatrix();
     
     ofPopView();
@@ -771,7 +775,8 @@ void testApp::drawTerrainGrid() {
     drawGrid(terrainSW, terrainNE, GRID_SUBDIVISIONS, GRID_SUBDIVISIONS, COLOR_GRID);
 }
 
-void testApp::drawReliefGrid() {
+void testApp::drawReliefGrid() 
+{
     ofPushMatrix();
     ofScale(reliefUnitToScreenUnit, reliefUnitToScreenUnit, reliefUnitToScreenUnit);
     float reliefScreenW = RELIEF_SIZE_X;
@@ -779,6 +784,26 @@ void testApp::drawReliefGrid() {
     ofEnableBlendMode(OF_BLENDMODE_ALPHA);
     drawGrid(ofVec2f(-reliefScreenW / 2, -reliefScreenH / 2), ofVec2f(reliefScreenW / 2, reliefScreenH / 2), 1, 1, ofColor(200, 200, 200, 200), ofColor(255, 0, 0, 100));
     ofDisableBlendMode();
+            
+    ofPopMatrix();
+}
+
+void testApp::drawReliefFrame() 
+{
+    ofPushMatrix();
+    ofScale(reliefUnitToScreenUnit, reliefUnitToScreenUnit, reliefUnitToScreenUnit);
+    float reliefScreenW = RELIEF_SIZE_X;
+    float reliefScreenH = RELIEF_SIZE_Y;
+    
+    ofFill();
+    ofSetColor(0);
+    float frameW = RELIEF_SIZE_X * 6;
+    float frameH = RELIEF_SIZE_Y * 6;
+    ofRect(ofVec2f(-frameW, -reliefScreenH / 2), frameW * 2, -frameH);
+    ofRect(ofVec2f(-frameW, reliefScreenH / 2), frameW * 2, frameH);
+    ofRect(ofVec2f(-reliefScreenW / 2, -frameH), -frameW, frameH * 2);
+    ofRect(ofVec2f(reliefScreenW / 2, -frameH), frameW, frameH * 2);
+    
     ofPopMatrix();
 }
 

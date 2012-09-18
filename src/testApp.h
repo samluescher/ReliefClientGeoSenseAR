@@ -101,6 +101,7 @@ public:
     void drawGrid(ofVec2f sw, ofVec2f ne, int subdivisionsX, int subdivisionsY, ofColor line);
     void drawGrid(ofVec2f sw, ofVec2f ne, int subdivisionsX, int subdivisionsY, ofColor line, ofColor background);
     void drawReliefGrid();
+    void drawReliefFrame();
     void drawTerrainGrid();
     void drawMapFeatures();
     void drawGUI();

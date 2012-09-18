@@ -4,7 +4,7 @@
 #include "ofxOsc.h"
 #include "TargetConditionals.h"
 
-#define RELIEF_HOST "18.189.22.224"
+#define RELIEF_HOST "18.111.18.106"
 #define RELIEF_PORT 78746
 
 #define RELIEF_SIZE_X 12
