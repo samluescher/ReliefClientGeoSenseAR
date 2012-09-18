@@ -86,6 +86,7 @@ public:
     bool calibrationMode, zoomMode;
     float timeSinceLastDoubleTap;
     ofVec3f reliefOffset, reliefToMarker1Offset, reliefToMarker2Offset;
+    float globalScale;
     ofVec2f terrainExtents;
     
     ofMatrix4x4 modelViewMatrix, projectionMatrix;

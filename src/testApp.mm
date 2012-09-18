@@ -94,6 +94,7 @@ void testApp::setup()
     
     terrainUnitToScreenUnit = 1 / 300.0f;    
     reliefUnitToScreenUnit = 39.5f;
+    globalScale = 1.0f;
     
     // offset of physical Relief to physical marker
     reliefOffset = ofVec3f(0, 0, 0);
@@ -153,6 +154,10 @@ void testApp::setup()
     float dim = 16;
 #endif
     
+#if (IS_TOP_DOWN_CLIENT)
+    cam.enableOrtho();
+#endif
+    
     layersGUI = new ofxUICanvas(spacing, spacing, guiW, ofGetHeight() * .6);     
 #if !(TARGET_OS_IPHONE)
 	layersGUI->addToggle("FULLSCREEN", fullscreenEnabled, dim, dim);
@@ -203,9 +208,10 @@ void testApp::setup()
 	calibrationGUI->addToggle("RECEIVING", false, dim, dim);
 	calibrationGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
 	calibrationGUI->addWidgetDown(new ofxUILabel("", OFX_UI_FONT_LARGE)); 
+    calibrationGUI->addSlider("GLOBAL SCALE", .1, 4, globalScale, guiW - spacing * 2, dim);
     calibrationGUI->addSlider("RELIEF OFFSET X", -200, 200, reliefOffset.x, guiW - spacing * 2, dim);
     calibrationGUI->addSlider("RELIEF OFFSET Y", -200, 200, reliefOffset.y, guiW - spacing * 2, dim);
-    calibrationGUI->addSlider("RELIEF OFFSET Z", -200, 200, reliefOffset.y, guiW - spacing * 2, dim);
+    calibrationGUI->addSlider("RELIEF OFFSET Z", -200, 200, reliefOffset.z, guiW - spacing * 2, dim);
 	ofAddListener(calibrationGUI->newGUIEvent,this,&testApp::guiEvent);
     
     //cam.disableMouseInput();
@@ -300,6 +306,9 @@ void testApp::guiEvent(ofxUIEventArgs &e)
         }
         if (name == "WATER LEVEL") {
             waterLevel = value; 
+        }
+        if (name == "GLOBAL SCALE") {
+            globalScale = value; 
         }
         if (name == "RELIEF OFFSET X") {
             reliefOffset.x = value; 
@@ -402,6 +411,8 @@ void testApp::draw()
 #endif
     
     ofTranslate(reliefOffset);
+    ofScale(globalScale, globalScale, globalScale);
+    
 #if (IS_TOP_DOWN_CLIENT)
 #endif
     
